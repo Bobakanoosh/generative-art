@@ -30,7 +30,7 @@ const piece: PieceDefinition<State> = {
 export default piece;
 ```
 
-Optional fields: `interactive`, `accumulates`, `loopSteps`, `phases` (`{ at, label }[]`, ticks for the player later), `description`.
+Optional fields: `interactive`, `accumulates`, `loopSteps`, `phases` (`{ at, label }[]`, shown as ticks on the player's scrub bar), `description`.
 
 ## Coordinates
 Draw in **logical units**: the width is always 1000 (`LOGICAL_WIDTH`), the height is `1000 / aspect`. The runner sets the canvas transform (scales to the output width, or to a print tile), so never read `canvas.width` or scale by pixel size yourself. Define `const W = 1000, H = W / ASPECT` and use those.
@@ -40,6 +40,9 @@ The runner calls `setup(params, rng)` once, then `step(ctx, state, i, input)` fo
 - Paint the background in `step` when `i === 0`.
 - A share code may carry `n` (stop step), so the runner must be able to stop at any step and give the same image the server would.
 - Kinds: **build** (finite `steps`) is all that exists today. **Endless** (`steps` = `Infinity`, requires `n` to render) and **interactive** (pointer/keys in `input`, recorded and replayed) are coming in Plan 3. `input` and `interactive` exist in the types but are inert; do not use them yet, and `steps()` must be finite.
+
+### Pacing and phases
+The player paces a build to about 10 s at 1x whatever its step count (eased, slow start, faster finish), so `steps` should reflect visual progression: each step should add a visible increment, and avoid one giant step that does most of the drawing. `phases[].at` is a step index; the player draws a labelled tick at `at / steps` on the scrub bar. Pacing is viewer-only and never changes the final image.
 
 ## Accumulation, no pixel feedback
 Pieces draw onto the existing canvas each step; translucent strokes accumulate. Set `accumulates: true` when the look of step N depends on pixels from earlier steps. **Never read pixels back** (`getImageData` is lint-banned and platform dependent). Keep any history you need in `state` and redraw from it.

@@ -47,7 +47,8 @@ export interface UseGeneration {
   regenerate(): void;
   randomize(): void;
   reset(): void;
-  setParam(key: string, value: unknown): void;
+  /** `live`: an in-progress drag (drawn instantly); omit/false to commit (replays the build). */
+  setParam(key: string, value: unknown, live?: boolean): void;
   dismissIssues(): void;
 }
 
@@ -159,10 +160,10 @@ export function useGeneration(slug: string, initialCode: string | null, initialS
   }, [schema, seed]);
 
   const setParam = useCallback(
-    (key: string, value: unknown) => {
+    (key: string, value: unknown, live = false) => {
       historyMode.current = 'replace-debounced';
       setRenderDelayMs(PARAM_RENDER_DEBOUNCE_MS);
-      dispatch({ type: 'setParam', schema, key, value });
+      dispatch({ type: 'setParam', schema, key, value, live });
     },
     [schema],
   );

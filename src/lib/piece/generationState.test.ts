@@ -40,7 +40,7 @@ function fakePiece(version: number, s: ParamSchema = schema): PieceDefinition {
 const piece = fakePiece(1);
 
 function stateWith(p: Record<string, unknown>, s = 'seed0', issues: string[] = []): GenerationState {
-  return { gen: { v: 1, s, p: { ...defaultsOf(schema), ...p } }, issues };
+  return { gen: { v: 1, s, p: { ...defaultsOf(schema), ...p } }, issues, motion: 'play' };
 }
 
 describe('generationReducer', () => {
@@ -85,7 +85,7 @@ describe('generationReducer', () => {
 
   it('setParam sets a valid value and keeps the seed', () => {
     const before = stateWith({});
-    const after = generationReducer(before, { type: 'setParam', schema, key: 'num', value: 2.5 });
+    const after = generationReducer(before, { type: 'setParam', schema, key: 'num', value: 2.5, live: false });
     expect(after.gen.p.num).toBe(2.5);
     expect(after.gen.s).toBe('seed0');
     expect(after.gen.p.int).toBe(3);
@@ -93,26 +93,26 @@ describe('generationReducer', () => {
 
   it('setParam clamps out-of-range numbers', () => {
     const before = stateWith({});
-    expect(generationReducer(before, { type: 'setParam', schema, key: 'num', value: 99 }).gen.p.num).toBe(10);
-    expect(generationReducer(before, { type: 'setParam', schema, key: 'int', value: -4 }).gen.p.int).toBe(1);
+    expect(generationReducer(before, { type: 'setParam', schema, key: 'num', value: 99, live: false }).gen.p.num).toBe(10);
+    expect(generationReducer(before, { type: 'setParam', schema, key: 'int', value: -4, live: false }).gen.p.int).toBe(1);
   });
 
   it('setParam rejects invalid values by falling back to the default', () => {
     const before = stateWith({ col: '#445566' });
-    const after = generationReducer(before, { type: 'setParam', schema, key: 'col', value: 'nope' });
+    const after = generationReducer(before, { type: 'setParam', schema, key: 'col', value: 'nope', live: false });
     expect(after.gen.p.col).toBe('#112233');
   });
 
   it('setParam ignores unknown keys', () => {
     const before = stateWith({});
-    const after = generationReducer(before, { type: 'setParam', schema, key: 'bogus', value: 1 });
+    const after = generationReducer(before, { type: 'setParam', schema, key: 'bogus', value: 1, live: false });
     expect(after).toBe(before);
   });
 
   it('does not mutate the previous state', () => {
     const before = stateWith({});
     const snapshot = JSON.stringify(before);
-    generationReducer(before, { type: 'setParam', schema, key: 'pal', value: ['#111111', '#222222'] });
+    generationReducer(before, { type: 'setParam', schema, key: 'pal', value: ['#111111', '#222222'], live: false });
     generationReducer(before, { type: 'randomize', schema, seed: 'q', rng: createRng('q') });
     generationReducer(before, { type: 'reset', schema, seed: 'q' });
     expect(JSON.stringify(before)).toBe(snapshot);
@@ -121,7 +121,7 @@ describe('generationReducer', () => {
   it('load replaces the whole state; dismissIssues clears issues', () => {
     const before = stateWith({}, 's', ['old']);
     const next = stateWith({ num: 1 }, 't', ['new']);
-    expect(generationReducer(before, { type: 'load', state: next })).toBe(next);
+    expect(generationReducer(before, { type: 'load', state: next })).toEqual(next);
     expect(generationReducer(before, { type: 'dismissIssues' }).issues).toEqual([]);
   });
 });
@@ -129,7 +129,7 @@ describe('generationReducer', () => {
 describe('initialGeneration', () => {
   it('null code → defaults with the given seed and no issues', () => {
     const r = initialGeneration(piece, null, 'abc');
-    expect(r).toEqual({ gen: { v: 1, s: 'abc', p: defaultsOf(schema) }, issues: [] });
+    expect(r).toEqual({ gen: { v: 1, s: 'abc', p: defaultsOf(schema) }, issues: [], motion: 'play' });
   });
 
   it('garbage code → defaults plus the invalid-link issue', () => {
@@ -180,7 +180,7 @@ describe('initialGeneration', () => {
 
 describe('stop step', () => {
   // A mid-build link (n set) must not leave every later generation half-drawn.
-  const before: GenerationState = { gen: { v: 1, s: 'a', p: defaultsOf(schema), n: 5 }, issues: [] };
+  const before: GenerationState = { gen: { v: 1, s: 'a', p: defaultsOf(schema), n: 5 }, issues: [], motion: 'play' };
 
   it('regenerate clears n', () => {
     const after = generationReducer(before, { type: 'regenerate', seed: 'b' });
@@ -194,7 +194,7 @@ describe('stop step', () => {
   });
 
   it('setParam clears n', () => {
-    const after = generationReducer(before, { type: 'setParam', schema, key: 'num', value: 2 });
+    const after = generationReducer(before, { type: 'setParam', schema, key: 'num', value: 2, live: false });
     expect(after.gen.p.num).toBe(2);
     expect(after.gen.s).toBe('a');
     expect('n' in after.gen).toBe(false);
@@ -202,6 +202,52 @@ describe('stop step', () => {
 
   it('reset clears n', () => {
     expect('n' in generationReducer(before, { type: 'reset', schema, seed: 'b' }).gen).toBe(false);
+  });
+});
+
+describe('motion', () => {
+  // A live (dragging) change draws instantly; every committed change replays the build.
+  const instant: GenerationState = { gen: { v: 1, s: 'a', p: defaultsOf(schema) }, issues: [], motion: 'instant' };
+
+  it('regenerate, randomize and reset play', () => {
+    expect(generationReducer(instant, { type: 'regenerate', seed: 'b' }).motion).toBe('play');
+    expect(generationReducer(instant, { type: 'randomize', schema, seed: 'b', rng: createRng('b') }).motion).toBe('play');
+    expect(generationReducer(instant, { type: 'reset', schema, seed: 'b' }).motion).toBe('play');
+  });
+
+  it('load plays, whatever motion the loaded state carries', () => {
+    const loaded: GenerationState = { ...instant, gen: { ...instant.gen, s: 'z' } };
+    const after = generationReducer(instant, { type: 'load', state: loaded });
+    expect(after.motion).toBe('play');
+    expect(after.gen).toEqual(loaded.gen);
+  });
+
+  it('a live setParam is instant; a committed setParam plays', () => {
+    const play = stateWith({});
+    const live = generationReducer(play, { type: 'setParam', schema, key: 'num', value: 2, live: true });
+    expect(live.motion).toBe('instant');
+    expect(live.gen.p.num).toBe(2);
+    const commit = generationReducer(live, { type: 'setParam', schema, key: 'num', value: 2, live: false });
+    expect(commit.motion).toBe('play');
+    expect(commit.gen.p.num).toBe(2);
+  });
+
+  it('a committed setParam with an unchanged value still yields a new gen (so the build replays)', () => {
+    const live = generationReducer(stateWith({}), { type: 'setParam', schema, key: 'num', value: 2, live: true });
+    const commit = generationReducer(live, { type: 'setParam', schema, key: 'num', value: 2, live: false });
+    expect(commit.gen).not.toBe(live.gen);
+    expect(commit.gen).toEqual(live.gen);
+  });
+
+  it('dismissIssues keeps the motion', () => {
+    const withIssues: GenerationState = { ...instant, issues: ['x'] };
+    expect(generationReducer(withIssues, { type: 'dismissIssues' }).motion).toBe('instant');
+  });
+
+  it('initialGeneration plays for every kind of code', () => {
+    expect(initialGeneration(piece, null, 'abc').motion).toBe('play');
+    expect(initialGeneration(piece, 'garbage!!', 'abc').motion).toBe('play');
+    expect(initialGeneration(piece, encodeGeneration({ v: 1, s: 'x', p: defaultsOf(schema) }), 'abc').motion).toBe('play');
   });
 });
 

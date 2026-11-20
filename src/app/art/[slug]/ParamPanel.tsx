@@ -1,10 +1,15 @@
 'use client';
 
-import { useId } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
+import { createSliderCommit } from '@/lib/piece/sliderCommit';
 import type { ParamMeta, ParamSchema, ParamSpec, Params } from '@/lib/piece/types';
 
 type Entry = ParamSpec & ParamMeta;
-type OnChange = (key: string, value: unknown) => void;
+/**
+ * `live` is true only while a range slider is being dragged (drawn instantly);
+ * its release and every other control send `live = false` (replays the build).
+ */
+type OnChange = (key: string, value: unknown, live: boolean) => void;
 
 const DEFAULT_GROUP = 'General';
 
@@ -40,7 +45,7 @@ export default function ParamPanel({ schema, params, onChange }: ParamPanelProps
 
 function Control({ name, spec, value, onChange }: { name: string; spec: Entry; value: unknown; onChange: OnChange }) {
   const id = useId();
-  const set = (v: unknown) => onChange(name, v);
+  const set = (v: unknown, live = false) => onChange(name, v, live);
 
   let body: React.ReactNode;
   switch (spec.kind) {
@@ -49,16 +54,7 @@ function Control({ name, spec, value, onChange }: { name: string; spec: Entry; v
       const step = spec.kind === 'integer' ? 1 : (spec.step ?? (spec.max - spec.min) / 100);
       body = (
         <div className="flex items-center gap-2">
-          <input
-            id={id}
-            type="range"
-            min={spec.min}
-            max={spec.max}
-            step={step}
-            value={Number(value)}
-            onChange={(e) => set(Number(e.target.value))}
-            className="min-w-0 flex-1"
-          />
+          <RangeSlider id={id} min={spec.min} max={spec.max} step={step} value={Number(value)} onChange={set} />
           <NumberField value={Number(value)} min={spec.min} max={spec.max} step={step} label={spec.label} onCommit={set} />
         </div>
       );
@@ -159,6 +155,56 @@ function Control({ name, spec, value, onChange }: { name: string; spec: Entry; v
       {body}
       {spec.description && <p className="text-xs opacity-60">{spec.description}</p>}
     </div>
+  );
+}
+
+/**
+ * Range input that reports drags as live changes and commits once on release
+ * (pointerup, keyup or the native `change` event, whichever comes first).
+ * React's `onChange` on a range input is the native `input` event.
+ */
+function RangeSlider(props: {
+  id: string;
+  min: number;
+  max: number;
+  step: number;
+  value: number;
+  onChange(value: number, live: boolean): void;
+}) {
+  const { onChange } = props;
+  const ref = useRef<HTMLInputElement>(null);
+  const [tracker] = useState(createSliderCommit);
+  const release = (value: number) => {
+    if (tracker.commit()) onChange(value, false);
+  };
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const onNativeChange = () => {
+      if (tracker.commit()) onChange(Number(el.value), false);
+    };
+    el.addEventListener('change', onNativeChange);
+    return () => el.removeEventListener('change', onNativeChange);
+  }, [tracker, onChange]);
+
+  return (
+    <input
+      ref={ref}
+      id={props.id}
+      type="range"
+      min={props.min}
+      max={props.max}
+      step={props.step}
+      value={props.value}
+      onChange={(e) => {
+        tracker.input();
+        onChange(Number(e.target.value), true);
+      }}
+      onPointerUp={(e) => release(Number(e.currentTarget.value))}
+      onKeyUp={(e) => release(Number(e.currentTarget.value))}
+      className="min-w-0 flex-1"
+    />
   );
 }
 

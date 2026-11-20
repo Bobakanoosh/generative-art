@@ -6,10 +6,17 @@ import { getPiece } from '@/pieces';
 
 export const INVALID_LINK_ISSUE = 'Invalid link — showing defaults';
 
+/**
+ * How the canvas should show the latest generation: `'play'` animates the
+ * build, `'instant'` draws it straight to the end (live slider drags).
+ */
+export type Motion = 'play' | 'instant';
+
 export interface GenerationState {
   gen: Generation;
   /** Human-readable problems with the loaded link; shown as a dismissible notice. */
   issues: string[];
+  motion: Motion;
 }
 
 /**
@@ -21,7 +28,8 @@ export type GenerationAction =
   | { type: 'regenerate'; seed: string }
   | { type: 'randomize'; schema: ParamSchema; seed: string; rng: Rng }
   | { type: 'reset'; schema: ParamSchema; seed: string }
-  | { type: 'setParam'; schema: ParamSchema; key: string; value: unknown }
+  /** `live`: an in-progress change (slider drag) that draws instantly; a commit replays the build. */
+  | { type: 'setParam'; schema: ParamSchema; key: string; value: unknown; live: boolean }
   | { type: 'load'; state: GenerationState }
   | { type: 'dismissIssues' };
 
@@ -33,21 +41,23 @@ export type GenerationAction =
 export function generationReducer(state: GenerationState, action: GenerationAction): GenerationState {
   switch (action.type) {
     case 'regenerate':
-      return { ...state, gen: { v: state.gen.v, s: action.seed, p: state.gen.p } };
+      return { ...state, gen: { v: state.gen.v, s: action.seed, p: state.gen.p }, motion: 'play' };
     case 'randomize':
       return {
         ...state,
         gen: { v: state.gen.v, s: action.seed, p: randomizeParams(action.schema, action.rng, state.gen.p) },
+        motion: 'play',
       };
     case 'reset':
-      return { gen: { v: state.gen.v, s: action.seed, p: defaultsOf(action.schema) }, issues: [] };
+      return { gen: { v: state.gen.v, s: action.seed, p: defaultsOf(action.schema) }, issues: [], motion: 'play' };
     case 'setParam': {
       if (!Object.prototype.hasOwnProperty.call(action.schema, action.key)) return state;
       const { params } = validateParams(action.schema, { ...state.gen.p, [action.key]: action.value });
-      return { ...state, gen: { v: state.gen.v, s: state.gen.s, p: params } };
+      // Always a new gen object, so a commit with the value already set by a live drag still replays.
+      return { ...state, gen: { v: state.gen.v, s: state.gen.s, p: params }, motion: action.live ? 'instant' : 'play' };
     }
     case 'load':
-      return action.state;
+      return { ...action.state, motion: 'play' };
     case 'dismissIssues':
       return state.issues.length ? { ...state, issues: [] } : state;
   }
@@ -64,15 +74,17 @@ export function initialGeneration(
   seed: string,
 ): GenerationState {
   const defaults: Generation = { v: piece.version, s: seed, p: defaultsOf(piece.schema) };
-  if (code === null) return { gen: defaults, issues: [] };
+  if (code === null) return { gen: defaults, issues: [], motion: 'play' };
 
   const decoded = decodeGeneration(code);
-  if (!decoded || decoded.v !== piece.version) return { gen: defaults, issues: [INVALID_LINK_ISSUE] };
+  if (!decoded || decoded.v !== piece.version) {
+    return { gen: defaults, issues: [INVALID_LINK_ISSUE], motion: 'play' };
+  }
 
   const { params, issues } = validateParams(piece.schema, decoded.p);
   const gen: Generation = { v: decoded.v, s: decoded.s, p: params };
   if (decoded.n !== undefined) gen.n = decoded.n;
-  return { gen, issues };
+  return { gen, issues, motion: 'play' };
 }
 
 /**

@@ -66,7 +66,7 @@ const PIECES = [flowRibbonsV1, myPieceV1] as PieceDefinition[];
 Always import registry functions from `@/pieces`, never from `@/lib/piece/registry`, so registration runs.
 
 ## 3. Iterate
-`npm run dev`, open `http://localhost:3000/art/<slug>` (local pieces are visible in dev). The panel has Regenerate (new seed), Randomize (new seed + random params), Reset, and Copy link. Keep `npm run lint` clean as you go - it blocks banned APIs.
+`npm run dev`, open `http://localhost:3000/art/<slug>` (local pieces are visible in dev). The panel has Regenerate (new seed), Randomize (new seed + random params), Reset, and Copy link. Use the player bar to watch the build; pick Instant speed for fast tweaks. Keep `npm run lint` clean as you go - it blocks banned APIs.
 
 ## 4. Choose featured codes
 `npm test` fails while a registered piece has an empty `featured` (the snapshot test asserts `featured.length > 0`): add at least one code (even a provisional one) before running tests or recording snapshots.
@@ -80,5 +80,8 @@ Optionally add `snapshotCodes: [...]` (same format, never shown) to pin params o
 
 Then `npm test` must pass without the variable. Thumbnails: `npm run thumbs` (renders `public/thumbs/`; it also runs on `prebuild`, but `next dev` does not, so run it to see gallery tiles in dev).
 
-## 6. Done iterating?
+## 6. Check the video export
+Before publishing a build piece, click Record video (and GIF) on its page and watch the result: the build should read well over 8 s and the 2 s hold should show the finished image.
+
+## 7. Done iterating?
 Follow `publish-piece`. Until then keep `local: true`.

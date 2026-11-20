@@ -19,7 +19,13 @@ A Next.js site that shows deterministic, versioned, canvas-drawn generative piec
 - `npm run thumbs` - render `public/thumbs/` from featured codes (runs automatically on `prebuild`)
 - `npm run build` / `npm start` - production build and server
 
-URLs: `/art/<slug>?g=<code>` page; `/api/render?slug=&g=&w=` PNG (default 1200 px wide; clamped so the long edge is at most 4096 px and the image at most 4096² pixels).
+URLs: `/art/<slug>?g=<code>` page; `/art/<slug>/print?g=<code>` print page; `/api/render?slug=&g=&w=` PNG (default 1200 px wide; clamped so the long edge is at most 4096 px and the image at most 4096² pixels).
+
+## Playback, video, print
+- Player (`PlayerBar`): builds play back over about 10 s at 1x (ease `t^1.6`), speeds 0.5x/1x/2x/Instant, scrub/seek, `phases` ticks. Pacing is viewer-only; the final image equals the instant render.
+- Video export (`VideoExport`): MP4 (WebM where H.264 can't be encoded) at 30 fps, 1080 px long edge; GIF at 15 fps, 540 px. Both 8 s build + 2 s hold, rendered frame-locked.
+- Print (`/art/<slug>/print`): paper sizes letter, a4, a3, 8x10, 11x14, 12x16, 18x24; 300 DPI tiles (max 2048 px edge), 0.5 in margin, optional caption (default on).
+- Layout: `src/lib/playback` (pacing, seek, speed preference, playback loop), `src/lib/video` (frame plan, encode), `src/lib/print` (paper layout, tiles); UI in `src/app/art/[slug]/` (`PlayerBar.tsx`, `VideoExport.tsx`, `print/`).
 
 ## Skills (`.claude/skills/`)
 - `piece-contract` - the `PieceDefinition` interface and param schema
@@ -30,4 +36,4 @@ URLs: `/art/<slug>?g=<code>` page; `/api/render?slug=&g=&w=` PNG (default 1200 p
 
 ## Docs
 Design spec: `docs/superpowers/specs/2026-11-19-generative-art-portfolio-design.md`. Reference piece: `src/pieces/flow-ribbons/v1`.
-Coming in later plans: playback and video/print (Plan 2), endless and interactive pieces and captures (Plan 3), design pass and deploy (Plan 4).
+Coming in later plans: endless and interactive pieces and captures (Plan 3), design pass and deploy (Plan 4).
