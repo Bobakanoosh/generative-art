@@ -1,26 +1,180 @@
 @import "tailwindcss";
 
+/*
+ * Gallery wall: dark only, no brand accent (the art supplies the colour).
+ * Raw tokens live on :root; Tailwind colour/font utilities map onto them below.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #0d0c0b;
+  --surface: #151412;
+  --line: rgba(237, 233, 226, 0.1);
+  --line-strong: rgba(237, 233, 226, 0.22);
+  --fg: #ede9e2;
+  --muted: rgba(237, 233, 226, 0.56);
+  --faint: rgba(237, 233, 226, 0.4);
+  --focus: #ede9e2;
+
+  /* Height of SiteHeader; full-viewport layouts subtract it. */
+  --header-h: 56px;
+
+  color-scheme: dark;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-focus: var(--focus);
+
+  --font-serif: var(--font-instrument-serif), "Iowan Old Style", Georgia, serif;
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SFMono-Regular", Menlo, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* Corners stay crisp: nothing rounder than 2 px (rounded-full is unaffected). */
+@theme {
+  --radius: 2px;
+  --radius-xs: 2px;
+  --radius-sm: 2px;
+  --radius-md: 2px;
+  --radius-lg: 2px;
+  --radius-xl: 2px;
+  --radius-2xl: 2px;
+  --radius-3xl: 2px;
+  --radius-4xl: 2px;
+
+  /* The live bar's dot breathing while the piece runs (stopped under reduced motion). */
+  --animate-live-pulse: live-pulse 2s ease-in-out infinite;
+  @keyframes live-pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.3;
+    }
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Small uppercase UI label: 11 px, tracked, muted. */
+@utility ui-label {
+  font-size: 11px;
+  line-height: 1.2;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+@layer base {
+  html {
+    background: var(--bg);
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  :focus-visible {
+    outline: 1px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: var(--fg);
+    color: var(--bg);
+  }
+}
+
+/*
+ * Range slider (Slider control): the native input draws only the thumb, a
+ * 12 px disc in a 24 px hit area; the 1 px track and its fill are elements
+ * behind it.
+ */
+@layer components {
+  .range {
+    appearance: none;
+    -webkit-appearance: none;
+    height: 24px;
+    margin: 0;
+    background: transparent;
+    cursor: pointer;
+  }
+  .range:focus-visible {
+    outline: none;
+  }
+  .range::-webkit-slider-runnable-track {
+    height: 24px;
+    background: transparent;
+    border: 0;
+  }
+  .range::-moz-range-track {
+    height: 24px;
+    background: transparent;
+    border: 0;
+  }
+  .range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 12px;
+    height: 12px;
+    margin-top: 6px;
+    border: 0;
+    border-radius: 9999px;
+    background: var(--fg);
+    transition: transform 150ms ease-out;
+  }
+  .range::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    border: 0;
+    border-radius: 9999px;
+    background: var(--fg);
+    transition: transform 150ms ease-out;
+  }
+  .range:hover::-webkit-slider-thumb,
+  .range:active::-webkit-slider-thumb {
+    transform: scale(1.17);
+  }
+  .range:hover::-moz-range-thumb,
+  .range:active::-moz-range-thumb {
+    transform: scale(1.17);
+  }
+  /* Focus ring on the thumb itself (1 px --focus, 2 px gap). */
+  .range:focus-visible::-webkit-slider-thumb {
+    outline: 1px solid var(--focus);
+    outline-offset: 2px;
+  }
+  .range:focus-visible::-moz-range-thumb {
+    outline: 1px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  /* A thin, quiet scrollbar for panels that scroll on their own. */
+  .scroll-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--line-strong) transparent;
+    scrollbar-gutter: stable;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

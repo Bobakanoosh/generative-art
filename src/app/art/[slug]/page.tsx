@@ -3,13 +3,13 @@ import { notFound } from 'next/navigation';
 import { connection } from 'next/server';
 import { Suspense } from 'react';
 import { resolvePiece } from '@/lib/piece/generationState';
-import { defaultsOf } from '@/lib/piece/schema';
-import { decodeGeneration, encodeGeneration, newSeed } from '@/lib/piece/share';
-import { MAX_CODE_LENGTH } from '@/lib/render/parseRenderRequest';
+import { newSeed } from '@/lib/piece/share';
 import type { PieceDefinition } from '@/lib/piece/types';
 import { resolveSiteUrl } from '@/lib/siteUrl';
 import { getPiece, listPieces } from '@/pieces';
 import ArtView from './ArtView';
+import { PanelHeader, PieceLayout, StagePlaceholder } from './PieceLayout';
+import { ogCode } from './ogCode';
 
 const SITE_URL = resolveSiteUrl({
   NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
@@ -39,16 +39,6 @@ export const instant = false;
 function firstString(v: string | string[] | undefined): string | null {
   const s = Array.isArray(v) ? v[0] : v;
   return s ? s : null;
-}
-
-/** A code `/api/render` will accept for the OG image: the link's own if valid, else the first featured one. */
-function ogCode(slug: string, code: string | null): string {
-  const decoded = code ? decodeGeneration(code) : null;
-  const renderable =
-    code && decoded && code.length <= MAX_CODE_LENGTH && getPiece(slug, decoded.v);
-  if (renderable) return code;
-  const latest = getPiece(slug)!;
-  return latest.featured[0] ?? encodeGeneration({ v: latest.version, s: 'og', p: defaultsOf(latest.schema) });
 }
 
 export async function generateMetadata({ params, searchParams }: PageProps<'/art/[slug]'>): Promise<Metadata> {
@@ -103,15 +93,15 @@ async function LoadedArtView({
   return <ArtView slug={slug} initialCode={code} initialSeed={newSeed()} />;
 }
 
-/** Static shell while the request-time view streams in. */
+/**
+ * Static shell while the request-time view streams in: the loaded view's layout
+ * with the art frame at the same size (`artFrameWidth`), so nothing shifts.
+ */
 function Placeholder({ piece }: { piece: PieceDefinition }) {
   return (
-    <div className="flex flex-1 flex-col items-center justify-center p-4 lg:p-6">
-      <div
-        className="max-w-full animate-pulse bg-foreground/5"
-        style={{ aspectRatio: String(piece.aspect), width: `min(100%, calc((100dvh - 3rem) * ${piece.aspect}))` }}
-        aria-label={`Loading ${piece.title}`}
-      />
-    </div>
+    <PieceLayout
+      stage={<StagePlaceholder aspect={piece.aspect} label={`Loading ${piece.title}`} />}
+      panel={<PanelHeader title={piece.title} description={piece.description} />}
+    />
   );
 }

@@ -4,12 +4,14 @@
  */
 import { createCanvas } from '@napi-rs/canvas';
 import type { Generation, PieceDefinition } from '@/lib/piece/types';
+import { replaySource, type InputLog } from '@/lib/input/log';
 import { renderGeneration } from './runner';
 
 export async function renderPng(
   piece: PieceDefinition,
   gen: Generation,
   widthPx: number,
+  input?: InputLog,
 ): Promise<Buffer> {
   const width = Math.round(widthPx);
   const height = Math.round(width / piece.aspect);
@@ -17,6 +19,6 @@ export async function renderPng(
   // @napi-rs/canvas implements the 2D context API but ships its own
   // SKRSContext2D type; it is structurally close enough for pieces.
   const ctx = canvas.getContext('2d') as unknown as CanvasRenderingContext2D;
-  renderGeneration(piece, gen, ctx, width);
+  renderGeneration(piece, gen, ctx, width, undefined, input ? replaySource(input) : undefined);
   return canvas.encode('png');
 }

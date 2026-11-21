@@ -2,9 +2,16 @@ import { parseRenderRequest } from '@/lib/render/parseRenderRequest';
 import { mapRenderError } from '@/lib/render/renderError';
 import { renderPng } from '@/lib/render/server';
 
-// No `runtime` export: with cacheComponents the Node.js runtime is the only
-// option and the segment config is unsupported. Reading request.url makes this
+// No `runtime` export: under cacheComponents the `runtime` segment config is
+// unsupported (Node.js is the only runtime). Other segment config such as
+// `maxDuration` below is still supported. Reading request.url makes this
 // handler request-time (never prerendered).
+/**
+ * Long live renders replay every step (murmuration at 100 000 steps: about 1.5 min). 300 s is
+ * Vercel's fluid-compute limit on all plans; Vercel reads this from the build output.
+ */
+export const maxDuration = 300;
+
 const NO_STORE = { 'Cache-Control': 'no-store' };
 
 function errorResponse(error: string, status: number) {

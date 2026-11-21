@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createRunner, renderGeneration, logicalHeight } from './runner';
 import { createRng } from '@/lib/art/rng';
-import type { PieceDefinition, Params } from '@/lib/piece/types';
+import { EMPTY_INPUT, type PieceDefinition, type Params } from '@/lib/piece/types';
 
 function fakeCtx(width = 1000, height = 800) {
   const calls: { op: string; args: number[] }[] = [];
@@ -122,5 +122,36 @@ describe('runner', () => {
     expect(() => createRunner(piece, gen, fakeCtx().ctx, 1000)).toThrow('Endless piece requires a stop step');
     expect(() => createRunner(piece, { ...gen, n: 2 }, fakeCtx().ctx, 1000)).not.toThrow();
     expect(createRunner(piece, { ...gen, n: 2 }, fakeCtx().ctx, 1000).total).toBe(2);
+  });
+});
+
+describe('runner input', () => {
+  function inputPiece() {
+    const seen: unknown[] = [];
+    const piece = {
+      slug: 'fake', version: 1, title: 'Fake', aspect: 1, schema: {}, featured: [],
+      setup: () => ({}),
+      step: (_c: unknown, _s: unknown, i: number, input: unknown) => seen.push([i, input]),
+      steps: () => 3,
+    } as unknown as PieceDefinition;
+    return { piece, seen };
+  }
+
+  it('passes input(i) to step for i = 0..n-1 in order', () => {
+    const { piece, seen } = inputPiece();
+    const asked: number[] = [];
+    const src = (i: number) => {
+      asked.push(i);
+      return { pointer: { x: i, y: 0, down: false }, keys: [] };
+    };
+    renderGeneration(piece, gen, fakeCtx().ctx, 1000, undefined, src);
+    expect(asked).toEqual([0, 1, 2]);
+    expect(seen).toEqual([0, 1, 2].map((i) => [i, { pointer: { x: i, y: 0, down: false }, keys: [] }]));
+  });
+
+  it('uses empty input when omitted', () => {
+    const { piece, seen } = inputPiece();
+    renderGeneration(piece, gen, fakeCtx().ctx, 1000);
+    expect(seen.map((s) => (s as [number, unknown])[1])).toEqual([EMPTY_INPUT, EMPTY_INPUT, EMPTY_INPUT]);
   });
 });

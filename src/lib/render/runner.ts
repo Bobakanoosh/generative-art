@@ -1,6 +1,6 @@
 import { createRng } from '@/lib/art/rng';
 import { validateParams } from '@/lib/piece/schema';
-import { EMPTY_INPUT, type Generation, type PieceDefinition } from '@/lib/piece/types';
+import { EMPTY_INPUT, type Generation, type InputFrame, type PieceDefinition } from '@/lib/piece/types';
 
 export const LOGICAL_WIDTH = 1000;
 export const DT = 1 / 60;
@@ -21,6 +21,9 @@ export interface Runner {
   finish(): void;
 }
 
+/** Supplies the input for step `i`; called with i = 0..n-1 in order. */
+export type InputSource = (i: number) => InputFrame;
+
 export function logicalHeight(piece: PieceDefinition): number {
   return LOGICAL_WIDTH / piece.aspect;
 }
@@ -31,6 +34,7 @@ export function createRunner(
   ctx: CanvasRenderingContext2D,
   outWidthPx: number,
   tile?: Tile,
+  input: InputSource = () => EMPTY_INPUT,
 ): Runner {
   const t: Tile = tile ?? { x: 0, y: 0, w: LOGICAL_WIDTH, h: logicalHeight(piece) };
   const { params } = validateParams(piece.schema, gen.p);
@@ -62,7 +66,7 @@ export function createRunner(
       const end = Math.min(total, index + n);
       while (index < end) {
         ctx.setTransform(s, 0, 0, s, tx, ty);
-        piece.step(ctx, state, index, EMPTY_INPUT);
+        piece.step(ctx, state, index, input(index));
         index++;
       }
     },
@@ -79,6 +83,7 @@ export function renderGeneration(
   ctx: CanvasRenderingContext2D,
   outWidthPx: number,
   tile?: Tile,
+  input?: InputSource,
 ): void {
-  createRunner(piece, gen, ctx, outWidthPx, tile).finish();
+  createRunner(piece, gen, ctx, outWidthPx, tile, input).finish();
 }

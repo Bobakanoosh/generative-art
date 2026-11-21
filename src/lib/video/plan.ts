@@ -1,4 +1,6 @@
 import { easeBuild } from '@/lib/playback/pacing';
+import { LIVE_STEPS_PER_SECOND } from '@/lib/live/constants';
+import { MAX_STOP_STEP } from '@/lib/piece/share';
 
 /** Frame-locked recording of a build: an eased build, then a still hold on the final image. */
 export interface VideoSpec {
@@ -62,4 +64,41 @@ export function gifDelaysMs(runs: readonly { frames: number }[], fps: number): n
     framesDone += frames;
   }
   return delays;
+}
+
+/** Endless clip lengths, in seconds. */
+export const CLIP_SECONDS = [5, 10, 15] as const;
+
+/** Live steps per output frame at `fps` (the sim runs 60 steps/s); `fps` must divide 60. */
+export function stepsPerFrame(fps: number): number {
+  const spf = LIVE_STEPS_PER_SECOND / fps;
+  if (!Number.isInteger(spf) || spf < 1) throw new Error(`Frame rate ${fps} does not divide ${LIVE_STEPS_PER_SECOND} steps/s`);
+  return spf;
+}
+
+/**
+ * Steps for each frame of a clip starting at `from`: from + k * stepsPerFrame,
+ * k = 0..seconds*fps-1; stepsPerFrame = 60 / fps. Frames past `max` (the
+ * stop-step cap, or where a recording ended) are cut, so the clip may be
+ * shorter; it starts at step 1 at the earliest (step 0 is a blank canvas).
+ */
+export function clipFramePlan(from: number, seconds: number, fps: number, max: number = MAX_STOP_STEP): number[] {
+  const spf = stepsPerFrame(fps);
+  const start = Math.min(max, Math.max(1, Math.floor(from)));
+  const plan: number[] = [];
+  const count = Math.round(seconds * fps);
+  for (let k = 0; k < count; k++) {
+    const step = start + k * spf;
+    if (step > max) break;
+    plan.push(step);
+  }
+  return plan;
+}
+
+/** One period: frames at loopSteps + k * stepsPerFrame for k < loopSteps / stepsPerFrame. */
+export function loopFramePlan(loopSteps: number, fps: number): number[] {
+  const spf = stepsPerFrame(fps);
+  const plan: number[] = [];
+  for (let k = 0; k < loopSteps / spf; k++) plan.push(loopSteps + k * spf);
+  return plan;
 }

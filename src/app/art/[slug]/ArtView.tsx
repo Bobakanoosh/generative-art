@@ -1,22 +1,20 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Motion } from '@/lib/piece/generationState';
+import { useMemo, useState } from 'react';
 import type { Generation, PieceDefinition } from '@/lib/piece/types';
 import { useGeneration } from '@/lib/piece/useGeneration';
-import type { Speed } from '@/lib/playback/pacing';
-import { createPlayback, type FrameClock, type Playback } from '@/lib/playback/playback';
-import { resumeOptions, type ResumePoint } from '@/lib/playback/resume';
-import { browserStorage, loadSpeed, saveSpeed } from '@/lib/playback/speedPreference';
 import { printHref } from '@/lib/print/paper';
-import { fitRenderWidth } from '@/lib/render/parseRenderRequest';
+import { isLive } from '@/lib/live/live';
+import { pngDownloadWidth } from '@/lib/render/downloadWidth';
 import { latestVersion } from '@/pieces';
+import { Button } from '@/components/ui/Button';
+import { Icon } from '@/components/ui/Icon';
+import { IconButton } from '@/components/ui/IconButton';
+import ArtCanvas from './ArtCanvas';
+import LiveCanvas from './LiveCanvas';
 import ParamPanel from './ParamPanel';
-import PlayerBar from './PlayerBar';
+import { ActionRows, CopyLinkRow, PanelHeader, PieceLayout, rowClass } from './PieceLayout';
 import VideoExport from './VideoExport';
-
-const RESIZE_DEBOUNCE_MS = 150;
-const COPIED_MS = 1500;
 
 interface ArtViewProps {
   slug: string;
@@ -25,273 +23,154 @@ interface ArtViewProps {
 }
 
 export default function ArtView({ slug, initialCode, initialSeed }: ArtViewProps) {
-  const { piece, state, code, renderDelayMs, regenerate, randomize, reset, setParam, dismissIssues } =
+  const { piece, state, code, renderDelayMs, regenerate, randomize, reset, setParam, dismissIssues, goLive } =
     useGeneration(slug, initialCode, initialSeed);
   const latest = latestVersion(slug);
   const isOutdated = latest !== undefined && latest > state.gen.v;
+  // Endless/interactive generations run live; one with a stop step n is a captured moment (a build to n).
+  const live = useMemo(() => {
+    try {
+      return isLive(piece, state.gen);
+    } catch {
+      return false; // setup threw: the build canvas shows the error
+    }
+  }, [piece, state.gen]);
+  const runningLive = live && state.gen.n === undefined;
 
   return (
-    <div className="flex flex-1 flex-col lg:flex-row lg:h-dvh lg:max-h-dvh lg:overflow-hidden">
-      <section className="flex flex-1 flex-col items-center justify-center gap-3 p-4 lg:p-6 min-w-0">
-        {isOutdated && (
-          <p role="status" className="w-full max-w-3xl rounded border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
-            A newer version of this piece exists.{' '}
-            {/* Plain <a>: a full load re-initialises the generation from the URL. */}
-            <a href={`/art/${slug}`} className="underline">
-              View the latest
-            </a>
-          </p>
-        )}
-        {state.issues.length > 0 && (
-          <div role="alert" className="flex w-full max-w-3xl items-start gap-3 rounded border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm">
-            <ul className="flex-1 list-none space-y-0.5">
-              {state.issues.map((issue, i) => (
-                <li key={i}>{issue}</li>
-              ))}
-            </ul>
-            <button type="button" onClick={dismissIssues} aria-label="Dismiss notice" className="opacity-70 hover:opacity-100">
-              ✕
-            </button>
-          </div>
-        )}
-        <ArtCanvas piece={piece} gen={state.gen} motion={state.motion} delayMs={renderDelayMs} />
-      </section>
-
-      <aside className="w-full shrink-0 border-t border-foreground/10 lg:w-80 lg:border-t-0 lg:border-l lg:overflow-y-auto">
-        <div className="space-y-5 p-4">
-          <header>
-            <h1 className="text-lg font-semibold">{piece.title}</h1>
-            {piece.description && <p className="mt-1 text-sm opacity-70">{piece.description}</p>}
-            <p className="mt-1 font-mono text-xs opacity-50">
-              v{state.gen.v} · seed {state.gen.s}
+    <PieceLayout
+      stage={
+        <>
+          {isOutdated && (
+            <p role="status" className="w-full max-w-3xl border border-line-strong bg-surface px-3 py-2 text-[13px] text-muted">
+              A newer version of this piece exists.{' '}
+              {/* Plain <a>: a full load re-initialises the generation from the URL. */}
+              <a href={`/art/${slug}`} className="text-fg underline decoration-1 underline-offset-4 hover:decoration-fg/60">
+                View the latest
+              </a>
             </p>
-          </header>
-          <Actions
+          )}
+          {state.issues.length > 0 && <IssuesNotice issues={state.issues} onDismiss={dismissIssues} />}
+          {runningLive ? (
+            <LiveCanvas slug={slug} piece={piece} gen={state.gen} delayMs={renderDelayMs} />
+          ) : (
+            <ArtCanvas piece={piece} gen={state.gen} motion={state.motion} delayMs={renderDelayMs}>
+              {live && (
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]">
+                  <span className="text-muted">
+                    A captured moment at step <span className="font-mono tabular-nums">{state.gen.n}</span>.
+                  </span>
+                  <Button variant="quiet" size="sm" onClick={goLive} title="Run this piece live from the start">
+                    <Icon name="play" size={14} />
+                    Go live
+                  </Button>
+                </div>
+              )}
+            </ArtCanvas>
+          )}
+        </>
+      }
+      panel={
+        <>
+          <PanelHeader title={piece.title} description={piece.description} meta={`v${state.gen.v} · seed ${state.gen.s}`} />
+          <PrimaryActions onRegenerate={regenerate} onRandomize={randomize} onReset={reset} />
+          <div className="mt-8">
+            <ParamPanel schema={piece.schema} params={state.gen.p} onChange={setParam} />
+          </div>
+          <SecondaryActions
             piece={piece}
             gen={state.gen}
             slug={slug}
             code={code}
             seed={state.gen.s}
-            onRegenerate={regenerate}
-            onRandomize={randomize}
-            onReset={reset}
+            live={runningLive}
+            pngWidth={pngDownloadWidth(live, state.gen.n)}
           />
-          <ParamPanel schema={piece.schema} params={state.gen.p} onChange={setParam} />
-        </div>
-      </aside>
+        </>
+      }
+    />
+  );
+}
+
+/** Issues shown before the rest fold behind a toggle: a long list would take the art's height. */
+const ISSUES_SHOWN = 3;
+
+/** What a share link got wrong (clamped, missing or unknown params), dismissable. */
+function IssuesNotice({ issues, onDismiss }: { issues: string[]; onDismiss(): void }) {
+  const [expanded, setExpanded] = useState(false);
+  const hidden = issues.length - ISSUES_SHOWN;
+  const shown = expanded || hidden <= 0 ? issues : issues.slice(0, ISSUES_SHOWN);
+  return (
+    <div role="alert" className="flex w-full max-w-3xl items-start gap-3 border border-line-strong bg-surface px-3 py-2 text-[13px]">
+      <div className="flex-1">
+        <ul className="list-none space-y-0.5">
+          {shown.map((issue, i) => (
+            <li key={i}>{issue}</li>
+          ))}
+        </ul>
+        {hidden > 0 && (
+          <button
+            type="button"
+            aria-expanded={expanded}
+            onClick={() => setExpanded((e) => !e)}
+            className="mt-1 cursor-pointer text-muted underline decoration-1 underline-offset-4 transition-colors duration-150 ease-out hover:text-fg"
+          >
+            {expanded ? 'Show fewer' : `Show ${hidden} more`}
+          </button>
+        )}
+      </div>
+      <IconButton icon="close" label="Dismiss notice" size="sm" onClick={onDismiss} />
     </div>
   );
 }
 
-const buttonClass =
-  'rounded border border-foreground/20 px-2.5 py-1.5 text-sm hover:bg-foreground/10 active:bg-foreground/20 text-center';
+function PrimaryActions(props: { onRegenerate(): void; onRandomize(): void; onReset(): void }) {
+  return (
+    <div className="mt-6 flex items-center gap-2">
+      <Button variant="primary" className="flex-1" onClick={props.onRegenerate} title="New seed, same settings">
+        <Icon name="dice" size={16} />
+        Regenerate
+      </Button>
+      <Button variant="quiet" className="flex-1" onClick={props.onRandomize} title="New seed and random settings">
+        <Icon name="shuffle" size={16} />
+        Randomize
+      </Button>
+      <IconButton icon="reset" label="Reset settings to defaults" onClick={props.onReset} />
+    </div>
+  );
+}
 
-function Actions(props: {
+function SecondaryActions(props: {
   piece: PieceDefinition;
   gen: Generation;
   slug: string;
   code: string;
   seed: string;
-  onRegenerate(): void;
-  onRandomize(): void;
-  onReset(): void;
+  /** Running live: build-only exports (PNG, video, print) are hidden; Capture is in the live bar. */
+  live: boolean;
+  /** Download width: smaller for long live moments, which the server renders by replaying every step. */
+  pngWidth: number;
 }) {
   const { slug, code, seed } = props;
-  const [copied, setCopied] = useState(false);
-  const copiedTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  useEffect(() => () => clearTimeout(copiedTimer.current), []);
-
-  // Built from the code, not location.href: the address bar lags param tweaks by the URL debounce.
-  const copyLink = async () => {
-    const url = `${window.location.origin}/art/${encodeURIComponent(slug)}?g=${code}`;
-    try {
-      await navigator.clipboard.writeText(url);
-      setCopied(true);
-      clearTimeout(copiedTimer.current);
-      copiedTimer.current = setTimeout(() => setCopied(false), COPIED_MS);
-    } catch {
-      window.prompt('Copy this link:', url);
-    }
-  };
-
-  const pngHref = `/api/render?slug=${encodeURIComponent(slug)}&g=${code}&w=4096`;
+  const pngHref = `/api/render?slug=${encodeURIComponent(slug)}&g=${code}&w=${props.pngWidth}`;
 
   return (
-    <div className="grid grid-cols-2 gap-2">
-      <button type="button" className={buttonClass} onClick={props.onRegenerate} title="New seed, same settings">
-        Regenerate
-      </button>
-      <button type="button" className={buttonClass} onClick={props.onRandomize} title="New seed and random settings">
-        Randomize
-      </button>
-      <button type="button" className={buttonClass} onClick={props.onReset} title="Default settings, same seed">
-        Reset
-      </button>
-      <button type="button" className={buttonClass} onClick={copyLink} aria-live="polite">
-        {copied ? 'Copied' : 'Copy link'}
-      </button>
-      <a className={`${buttonClass} col-span-2`} href={pngHref} download={`${slug}-${seed}.png`}>
-        Download PNG
-      </a>
-      <VideoExport piece={props.piece} gen={props.gen} slug={slug} />
-      <a className={`${buttonClass} col-span-2`} href={printHref(slug, code)}>
-        Print / Save as PDF
-      </a>
-    </div>
+    <ActionRows>
+      {/* Built from the code, not location.href: the address bar lags param tweaks by the URL debounce. */}
+      <CopyLinkRow url={() => `${window.location.origin}/art/${encodeURIComponent(slug)}?g=${code}`} />
+      {!props.live && (
+        <>
+          <a className={rowClass} href={pngHref} download={`${slug}-${seed}.png`}>
+            <Icon name="download" size={16} />
+            Download PNG
+          </a>
+          <VideoExport piece={props.piece} gen={props.gen} slug={slug} />
+          <a className={rowClass} href={printHref(slug, code)}>
+            <Icon name="print" size={16} />
+            Print or save as PDF
+          </a>
+        </>
+      )}
+    </ActionRows>
   );
-}
-
-/**
- * Canvas at container width × devicePixelRatio with the piece's fixed aspect,
- * animated by one `Playback` per (generation, canvas size). The bitmap is
- * resized only right before drawing, so during a resize the old image is
- * scaled by CSS instead of going blank.
- */
-function ArtCanvas({
-  piece,
-  gen,
-  motion,
-  delayMs,
-}: {
-  piece: PieceDefinition;
-  gen: Generation;
-  motion: Motion;
-  delayMs: number;
-}) {
-  const wrapRef = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [cssWidth, setCssWidth] = useState<number | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [playback, setPlayback] = useState<Playback | null>(null);
-  /** Viewer's speed; loaded lazily (browser-only) when the first playback is created. */
-  const speedRef = useRef<Speed | null>(null);
-  /** Where the last playback was (generation, step, playing, finished), so a resize restores it. */
-  const lastRef = useRef<ResumePoint | null>(null);
-
-  useEffect(() => {
-    const el = wrapRef.current;
-    if (!el) return;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    let first = true;
-    const observer = new ResizeObserver(() => {
-      const width = el.clientWidth;
-      if (first) {
-        first = false;
-        setCssWidth(width);
-        return;
-      }
-      clearTimeout(timer);
-      timer = setTimeout(() => setCssWidth(width), RESIZE_DEBOUNCE_MS);
-    });
-    observer.observe(el);
-    return () => {
-      observer.disconnect();
-      clearTimeout(timer);
-    };
-  }, []);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || !cssWidth) return;
-    let pb: Playback | null = null;
-    const fail = (err: unknown) => {
-      pb?.destroy();
-      setError(err instanceof Error ? err.message : String(err));
-    };
-    // A piece that throws mid-build stops the playback and shows the error, like an instant render did.
-    const clock: FrameClock = {
-      now: () => performance.now(),
-      request: (cb) =>
-        requestAnimationFrame(() => {
-          try {
-            cb();
-          } catch (err) {
-            fail(err);
-          }
-        }),
-      cancel: (id) => cancelAnimationFrame(id),
-    };
-    const timer = setTimeout(() => {
-      const dpr = window.devicePixelRatio || 1;
-      // Same long-edge and pixel caps as the render API: huge/high-DPR screens
-      // (or a very tall piece) never allocate a giant canvas.
-      const width = fitRenderWidth(cssWidth * dpr, piece.aspect);
-      const height = Math.round(width / piece.aspect);
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        setError('Canvas 2D is not available in this browser.');
-        return;
-      }
-      canvas.width = width;
-      canvas.height = height;
-      speedRef.current ??= loadSpeed(browserStorage(), prefersReducedMotion());
-      // A resize redraws the same generation where it was: finished builds at once,
-      // others back to the same step, still paused or still playing.
-      const resume = resumeOptions(lastRef.current, gen, motion);
-      const instant = resume.finish;
-      try {
-        pb = createPlayback({
-          piece,
-          gen,
-          ctx,
-          widthPx: width,
-          speed: speedRef.current,
-          autoplay: resume.autoplay,
-          startAt: resume.startAt,
-          clock,
-        });
-        if (instant) pb.finish();
-        setError(null);
-        setPlayback(pb);
-      } catch (err) {
-        fail(err);
-        setPlayback(null);
-      }
-    }, delayMs);
-    return () => {
-      clearTimeout(timer);
-      if (pb) {
-        const { index, playing, done } = pb.status();
-        lastRef.current = { gen, index, playing, done };
-        pb.destroy();
-      }
-    };
-  }, [piece, gen, motion, cssWidth, delayMs]);
-
-  const changeSpeed = useCallback(
-    (speed: Speed) => {
-      speedRef.current = speed;
-      saveSpeed(browserStorage(), speed);
-      playback?.setSpeed(speed);
-    },
-    [playback],
-  );
-
-  return (
-    <div
-      className="flex max-w-full flex-col gap-2"
-      style={{
-        // Fit the viewport height (minus the player bar) on wide screens; full width when stacked.
-        width: `min(100%, calc((100dvh - 6rem) * ${piece.aspect}))`,
-      }}
-    >
-      <div ref={wrapRef} className="relative w-full" style={{ aspectRatio: String(piece.aspect) }}>
-        <canvas ref={canvasRef} className="block h-full w-full bg-black/20" aria-label={piece.title} role="img" />
-        {error && (
-          <p role="alert" className="absolute inset-x-0 bottom-0 bg-red-900/80 p-2 text-sm text-white">
-            Render failed: {error}
-          </p>
-        )}
-      </div>
-      <PlayerBar playback={error ? null : playback} phases={piece.phases} onSpeedChange={changeSpeed} />
-    </div>
-  );
-}
-
-function prefersReducedMotion(): boolean {
-  try {
-    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  } catch {
-    return false;
-  }
 }

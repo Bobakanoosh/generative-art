@@ -1,6 +1,8 @@
 'use client';
 
-import { useCallback, useSyncExternalStore } from 'react';
+import { useCallback, useState, useSyncExternalStore } from 'react';
+import { IconButton } from '@/components/ui/IconButton';
+import { Menu } from '@/components/ui/Menu';
 import { SPEEDS, phaseFractions, type Speed } from '@/lib/playback/pacing';
 import type { Playback, PlaybackStatus } from '@/lib/playback/playback';
 import { keySeekStep, stepAtFraction } from '@/lib/playback/seek';
@@ -41,12 +43,10 @@ function usePlaybackStatus(playback: Playback | null): PlaybackStatus | null {
 
 const speedLabel = (s: Speed) => (s === 'instant' ? 'Instant' : `${s}×`);
 
-const buttonClass =
-  'rounded border border-foreground/20 px-2 py-1 text-xs hover:bg-foreground/10 active:bg-foreground/20 disabled:opacity-40 disabled:hover:bg-transparent';
-
 /**
- * Transport controls for the live build: play/pause, replay, a seekable
- * progress track with phase ticks, speed, skip to end and a step counter.
+ * Transport for the build, one 40 px row under the art: play/pause, replay, a
+ * seekable 2 px progress track with phase ticks (16 px hit area; the thumb
+ * shows on hover, focus and drag), the step count, a speed menu and skip.
  */
 export default function PlayerBar({
   playback,
@@ -58,10 +58,12 @@ export default function PlayerBar({
   onSpeedChange(speed: Speed): void;
 }) {
   const status = usePlaybackStatus(playback);
+  const [dragging, setDragging] = useState(false);
   const index = status?.index ?? 0;
   const total = status?.total ?? 0;
   const fraction = total > 0 ? index / total : 0;
   const disabled = !playback || !status;
+  const speed = status?.speed ?? 1;
 
   const seekToPointer = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!playback || total <= 0) return;
@@ -69,20 +71,20 @@ export default function PlayerBar({
     if (rect.width <= 0) return;
     playback.seek(stepAtFraction((e.clientX - rect.left) / rect.width, total));
   };
+  const endDrag = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+    setDragging(false);
+  };
 
   return (
-    <div className="flex w-full flex-wrap items-center gap-2 text-xs" aria-label="Build player" role="group">
-      <button
-        type="button"
-        className={`${buttonClass} w-14`}
+    <div className="flex h-10 w-full items-center gap-1" aria-label="Build player" role="group">
+      <IconButton
+        icon={status?.playing ? 'pause' : 'play'}
+        label={status?.playing ? 'Pause' : 'Play'}
         disabled={disabled}
         onClick={() => (status?.playing ? playback?.pause() : playback?.play())}
-      >
-        {status?.playing ? 'Pause' : 'Play'}
-      </button>
-      <button type="button" className={buttonClass} disabled={disabled} onClick={() => playback?.replay()}>
-        Replay
-      </button>
+      />
+      <IconButton icon="replay" label="Replay" disabled={disabled} onClick={() => playback?.replay()} />
 
       <div
         role="slider"
@@ -93,15 +95,19 @@ export default function PlayerBar({
         aria-valuenow={index}
         aria-valuetext={`Step ${index} of ${total}`}
         aria-disabled={disabled}
-        className="relative h-5 min-w-24 flex-1 cursor-pointer touch-none rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-foreground/60"
+        data-dragging={dragging || undefined}
+        className="group relative mx-2 h-4 min-w-12 flex-1 cursor-pointer touch-none aria-disabled:cursor-default"
         onPointerDown={(e) => {
-          if (e.button !== 0) return;
+          if (e.button !== 0 || disabled) return;
           e.currentTarget.setPointerCapture(e.pointerId);
+          setDragging(true);
           seekToPointer(e);
         }}
         onPointerMove={(e) => {
           if (e.currentTarget.hasPointerCapture(e.pointerId)) seekToPointer(e);
         }}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
         onKeyDown={(e) => {
           if (!playback) return;
           const next = keySeekStep(e.key, index, total);
@@ -110,52 +116,49 @@ export default function PlayerBar({
           playback.seek(next);
         }}
       >
-        <div className="absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 overflow-hidden rounded-full bg-foreground/15">
-          <div className="h-full bg-foreground/70" style={{ width: `${fraction * 100}%` }} />
+        <div className="absolute inset-x-0 top-1/2 h-0.5 -translate-y-1/2 bg-line-strong">
+          <div className="h-full bg-fg" style={{ width: `${fraction * 100}%` }} />
         </div>
         {phaseFractions(phases, total).map((p, i) => (
           <span
             key={i}
             title={p.label}
             data-phase={p.label}
-            className="absolute top-0.5 bottom-0.5 w-0.5 -translate-x-1/2 bg-foreground/50"
+            className="absolute top-1/2 h-2 w-px -translate-x-1/2 -translate-y-1/2 bg-muted"
             style={{ left: `${p.fraction * 100}%` }}
           />
         ))}
+        <span
+          aria-hidden="true"
+          className={
+            'pointer-events-none absolute top-1/2 size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-fg opacity-0 ' +
+            'transition-opacity duration-150 ease-out group-hover:opacity-100 group-focus-visible:opacity-100 ' +
+            'group-data-[dragging]:opacity-100 group-aria-disabled:opacity-0'
+          }
+          style={{ left: `${fraction * 100}%` }}
+        />
       </div>
 
-      <span className="w-24 text-right font-mono tabular-nums opacity-70" aria-live="off">
+      <span className="min-w-[9ch] text-right font-mono text-xs tabular-nums text-muted" aria-live="off">
         {index} / {total}
       </span>
 
-      <label className="flex items-center gap-1">
-        <span className="opacity-70">Speed</span>
-        <select
-          className="rounded border border-foreground/20 bg-background px-1 py-0.5"
-          value={String(status?.speed ?? 1)}
-          disabled={disabled}
-          onChange={(e) => {
-            const next = SPEEDS.find((s) => String(s) === e.target.value);
-            if (next !== undefined) onSpeedChange(next);
-          }}
-        >
-          {SPEEDS.map((s) => (
-            <option key={String(s)} value={String(s)}>
-              {speedLabel(s)}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <button
-        type="button"
-        className={buttonClass}
-        disabled={disabled || status?.done}
-        onClick={() => playback?.finish()}
-        title="Draw the rest of the build at once"
+      <Menu
+        label={`Playback speed: ${speedLabel(speed)}`}
+        title="Playback speed"
+        disabled={disabled}
+        triggerClassName="min-w-10 justify-center font-mono text-xs tabular-nums"
+        items={SPEEDS.map((s) => ({
+          type: 'radio' as const,
+          label: speedLabel(s),
+          checked: s === speed,
+          onSelect: () => onSpeedChange(s),
+        }))}
       >
-        Skip to end
-      </button>
+        {speedLabel(speed)}
+      </Menu>
+
+      <IconButton icon="skip" label="Skip to end" disabled={disabled || status?.done} onClick={() => playback?.finish()} />
     </div>
   );
 }

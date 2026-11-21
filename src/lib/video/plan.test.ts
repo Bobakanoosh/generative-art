@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { easeBuild } from '@/lib/playback/pacing';
-import { GIF_SPEC, MP4_SPEC, buildFramePlan, collapseFrames, gifDelaysMs, videoSize } from './plan';
+import { MAX_STOP_STEP } from '@/lib/piece/share';
+import {
+  CLIP_SECONDS,
+  GIF_SPEC,
+  MP4_SPEC,
+  buildFramePlan,
+  clipFramePlan,
+  collapseFrames,
+  gifDelaysMs,
+  loopFramePlan,
+  videoSize,
+} from './plan';
 
 describe('specs', () => {
   it('match the agreed video and GIF settings', () => {
@@ -122,5 +133,63 @@ describe('gifDelaysMs', () => {
 
   it('is empty for no runs', () => {
     expect(gifDelaysMs([], 15)).toEqual([]);
+  });
+});
+
+describe('CLIP_SECONDS', () => {
+  it('offers 5, 10 and 15 s clips', () => {
+    expect(CLIP_SECONDS).toEqual([5, 10, 15]);
+  });
+});
+
+describe('clipFramePlan', () => {
+  it('MP4 at 30 fps: one frame per 2 steps from the current step', () => {
+    const plan = clipFramePlan(100, 5, 30);
+    expect(plan).toHaveLength(150);
+    expect(plan[0]).toBe(100);
+    expect(plan[1] - plan[0]).toBe(2);
+    expect(plan.at(-1)).toBe(100 + 149 * 2);
+    expect(plan.every((s, i) => i === 0 || s - plan[i - 1] === 2)).toBe(true);
+  });
+
+  it('GIF at 15 fps: one frame per 4 steps', () => {
+    const plan = clipFramePlan(100, 5, 15);
+    expect(plan).toHaveLength(75);
+    expect(plan[0]).toBe(100);
+    expect(plan[1] - plan[0]).toBe(4);
+  });
+
+  it('never plans a step beyond the stop-step cap (clip is cut short)', () => {
+    const plan = clipFramePlan(MAX_STOP_STEP - 10, 5, 30);
+    expect(plan).toEqual([MAX_STOP_STEP - 10, MAX_STOP_STEP - 8, MAX_STOP_STEP - 6, MAX_STOP_STEP - 4, MAX_STOP_STEP - 2, MAX_STOP_STEP]);
+    expect(clipFramePlan(MAX_STOP_STEP + 50, 5, 30)).toEqual([MAX_STOP_STEP]);
+  });
+
+  it('honours a lower cap (a recording that ended early)', () => {
+    expect(clipFramePlan(100, 10, 30, 106)).toEqual([100, 102, 104, 106]);
+  });
+
+  it('starts at step 1 at the earliest (step 0 is a blank canvas)', () => {
+    expect(clipFramePlan(0, 5, 30).slice(0, 3)).toEqual([1, 3, 5]);
+  });
+
+  it('rejects frame rates that do not divide 60 steps/s', () => {
+    expect(() => clipFramePlan(0, 5, 7)).toThrow();
+  });
+});
+
+describe('loopFramePlan', () => {
+  it('covers exactly one period starting at loopSteps', () => {
+    const plan = loopFramePlan(240, 30);
+    expect(plan).toHaveLength(120);
+    expect(plan[0]).toBe(240);
+    expect(plan.at(-1)).toBe(478);
+  });
+
+  it('GIF at 15 fps: one frame per 4 steps', () => {
+    const plan = loopFramePlan(240, 15);
+    expect(plan).toHaveLength(60);
+    expect(plan[0]).toBe(240);
+    expect(plan.at(-1)).toBe(476);
   });
 });

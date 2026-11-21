@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { InputLog } from '@/lib/input/log';
 import { initialGeneration, resolvePiece } from '@/lib/piece/generationState';
 import { encodeGeneration } from '@/lib/piece/share';
 import {
@@ -15,8 +16,12 @@ import {
   shortenMiddle,
 } from '@/lib/print/paper';
 import { printReady, releaseTileCanvases, type PrintProgress } from '@/lib/print/progress';
-import { BLEED_PX, flattenOnPaper, MAX_TILE_PX, planTiles, withBleed } from '@/lib/print/tiles';
-import { renderGeneration } from '@/lib/render/runner';
+import { renderPrintTile } from '@/lib/print/renderTile';
+import { BLEED_PX, MAX_TILE_PX, planTiles, withBleed } from '@/lib/print/tiles';
+import { Segmented } from '@/components/controls/Segmented';
+import { Toggle } from '@/components/controls/Toggle';
+import { Button } from '@/components/ui/Button';
+import { Icon } from '@/components/ui/Icon';
 
 /** CSS pixels per inch. */
 const CSS_PX_PER_IN = 96;
@@ -29,12 +34,18 @@ interface PrintViewProps {
   slug: string;
   initialCode: string | null;
   initialSeed: string;
+  /** Recorded input to replay in every tile (a stored capture). Keep its identity stable. */
+  input?: InputLog;
+  /** Caption code line instead of the share code (a capture prints `c/<id>`). */
+  captionCode?: string;
+  /** Back link instead of the piece page for the code (a capture links to `/c/<id>`). */
+  backHref?: string;
 }
 
 /** Let the browser paint (the progress text) between tiles. */
 const yieldToBrowser = () => new Promise<void>((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 
-export default function PrintView({ slug, initialCode, initialSeed }: PrintViewProps) {
+export default function PrintView({ slug, initialCode, initialSeed, input, captionCode, backHref }: PrintViewProps) {
   const piece = useMemo(() => resolvePiece(slug, initialCode)!, [slug, initialCode]);
   const { gen, issues } = useMemo(
     () => initialGeneration(piece, initialCode, initialSeed),
@@ -67,7 +78,8 @@ export default function PrintView({ slug, initialCode, initialSeed }: PrintViewP
       for (let i = 0; i < tiles.length; i++) {
         if (cancelled) return;
         // Later tiles (right/below) are appended on top of this one's bleed.
-        const { px, logical } = withBleed(tiles[i], artWPx, artHPx);
+        const bled = withBleed(tiles[i], artWPx, artHPx);
+        const { px } = bled;
         const canvas = document.createElement('canvas');
         canvas.width = px.w;
         canvas.height = px.h;
@@ -81,8 +93,7 @@ export default function PrintView({ slug, initialCode, initialSeed }: PrintViewP
         });
         const ctx = canvas.getContext('2d');
         if (!ctx) throw new Error('Canvas 2D is not available in this browser.');
-        renderGeneration(piece, gen, ctx, px.w, logical);
-        flattenOnPaper(ctx);
+        renderPrintTile(piece, gen, ctx, bled, input);
         host.appendChild(canvas);
         setProgress({ plan: tiles, done: i + 1, error: null });
         await yieldToBrowser();
@@ -95,7 +106,7 @@ export default function PrintView({ slug, initialCode, initialSeed }: PrintViewP
       cancelled = true;
       releaseTileCanvases(host);
     };
-  }, [piece, gen, tiles, artWPx, artHPx]);
+  }, [piece, gen, tiles, artWPx, artHPx, input]);
 
   // Scale the on-screen preview so the whole sheet fits below the controls.
   const previewRef = useRef<HTMLDivElement>(null);
@@ -128,52 +139,53 @@ export default function PrintView({ slug, initialCode, initialSeed }: PrintViewP
   return (
     <div className="flex flex-1 flex-col">
       <style>{printPageCss(layout.pageWIn, layout.pageHIn)}</style>
-      <div className="flex flex-wrap items-center gap-3 border-b border-foreground/10 p-4 text-sm print:hidden">
-        {/* Plain <a>: a full load re-initialises the piece page from the URL. */}
-        <a href={`/art/${encodeURIComponent(slug)}?g=${code}`} className="underline opacity-70 hover:opacity-100">
-          ← Back
-        </a>
-        <span className="font-semibold">{piece.title}</span>
-        <label className="flex items-center gap-1.5">
-          Paper
-          <select
-            value={paperId}
-            onChange={(e) => setPaperId(e.target.value)}
-            className="rounded border border-foreground/20 bg-background px-2 py-1"
+      <div className="border-b border-line px-4 py-3 sm:px-6 print:hidden">
+        <div className="flex flex-wrap items-center gap-x-8 gap-y-3">
+          {/* Plain <a>: a full load re-initialises the piece page from the URL. */}
+          <a
+            href={backHref ?? `/art/${encodeURIComponent(slug)}?g=${code}`}
+            className="inline-flex items-center gap-2 text-[13px] text-muted transition-colors duration-150 ease-out hover:text-fg"
           >
-            {PAPER_SIZES.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex items-center gap-1.5">
-          <input type="checkbox" checked={caption} onChange={(e) => setCaption(e.target.checked)} />
-          Caption
-        </label>
-        <button
-          type="button"
-          onClick={() => window.print()}
-          disabled={!ready}
-          className="rounded border border-foreground/20 px-2.5 py-1.5 hover:bg-foreground/10 disabled:opacity-40"
-        >
-          Print / Save as PDF
-        </button>
-        <span role="status" aria-live="polite" className="opacity-60">
-          {progress.error
-            ? null
-            : ready
-              ? `${layout.orientation} · ${artWPx} × ${artHPx} px at ${PRINT_DPI} DPI`
-              : `Rendering ${progress.plan === tiles ? progress.done : 0}/${tiles.length}`}
-        </span>
+            <Icon name="arrow-left" size={16} />
+            Back
+          </a>
+          <h1 className="font-serif text-2xl leading-none text-fg">{piece.title}</h1>
+          <div>
+            <Segmented
+              id="print-paper"
+              label="Paper"
+              value={paperById(paperId).label}
+              options={PAPER_SIZES.map((p) => p.label)}
+              onChange={(label) => {
+                const paper = PAPER_SIZES.find((p) => p.label === label);
+                if (paper) setPaperId(paper.id);
+              }}
+            />
+          </div>
+          <div>
+            <Toggle id="print-caption" label="Caption" value={caption} onChange={setCaption} />
+          </div>
+          <div className="ml-auto flex items-center gap-4">
+            <span role="status" aria-live="polite" className="font-mono text-xs tabular-nums text-muted">
+              {progress.error
+                ? null
+                : ready
+                  ? `${layout.orientation} · ${artWPx} × ${artHPx} px at ${PRINT_DPI} DPI`
+                  : `Rendering ${progress.plan === tiles ? progress.done : 0}/${tiles.length}`}
+            </span>
+            <Button variant="primary" onClick={() => window.print()} disabled={!ready}>
+              <Icon name="print" size={16} />
+              Print or save as PDF
+            </Button>
+          </div>
+        </div>
         {issues.length > 0 && (
-          <p role="alert" className="w-full text-red-600 dark:text-red-400">
+          <p role="alert" className="mt-3 text-[13px] text-fg">
             {issues.join(' · ')}
           </p>
         )}
         {progress.error && (
-          <p role="alert" className="w-full text-red-600 dark:text-red-400">
+          <p role="alert" className="mt-3 text-[13px] text-fg">
             Render failed: {progress.error}
           </p>
         )}
@@ -185,7 +197,7 @@ export default function PrintView({ slug, initialCode, initialSeed }: PrintViewP
           style={{ width: pageWCss * scale, height: pageHCss * scale, visibility: fitBox ? 'visible' : 'hidden' }}
         >
           <div
-            className="print-sheet flex flex-col items-center justify-center overflow-hidden bg-white text-neutral-800 shadow-lg"
+            className="print-sheet flex flex-col items-center justify-center overflow-hidden bg-white text-neutral-800"
             style={{
               width: `${layout.pageWIn}in`,
               height: `${layout.pageHIn}in`,
@@ -216,8 +228,12 @@ export default function PrintView({ slug, initialCode, initialSeed }: PrintViewP
                     · v{gen.v} · seed {gen.s}
                   </span>
                 </p>
-                <p className="font-mono opacity-60" style={{ fontSize: `${CAPTION_CODE_PT}pt` }} title={code}>
-                  {shortenMiddle(code, codeChars)}
+                <p
+                  className="font-mono opacity-60"
+                  style={{ fontSize: `${CAPTION_CODE_PT}pt` }}
+                  title={captionCode ?? code}
+                >
+                  {shortenMiddle(captionCode ?? code, codeChars)}
                 </p>
               </div>
             )}

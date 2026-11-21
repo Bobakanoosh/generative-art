@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createRng } from '@/lib/art/rng';
 import flowRibbonsV1 from '@/pieces/flow-ribbons/v1';
+import murmurationV1 from '@/pieces/murmuration/v1';
 import { defaultsOf } from './schema';
 import { decodeGeneration, encodeGeneration } from './share';
 import type { ParamSchema, PieceDefinition } from './types';
@@ -169,6 +170,28 @@ describe('initialGeneration', () => {
     expect(initialGeneration(piece, code, 'abc').gen.n).toBe(12);
   });
 
+  it('n = 0 on a live piece means no stop step (opens running live), not an empty moment', () => {
+    const p = defaultsOf(murmurationV1.schema);
+    const zero = encodeGeneration({ v: 1, s: 'z', p, n: 0 });
+    const r = initialGeneration(murmurationV1 as PieceDefinition, zero, 'abc');
+    expect(r.gen).toEqual({ v: 1, s: 'z', p });
+    expect('n' in r.gen).toBe(false);
+    // A real moment keeps its n.
+    const moment = encodeGeneration({ v: 1, s: 'z', p, n: 5 });
+    expect(initialGeneration(murmurationV1 as PieceDefinition, moment, 'abc').gen.n).toBe(5);
+  });
+
+  it('n = 0 on a build piece is kept (the start of the build)', () => {
+    const code = encodeGeneration({ v: 1, s: 'n', p: defaultsOf(schema), n: 0 });
+    expect(initialGeneration(piece, code, 'abc').gen.n).toBe(0);
+  });
+
+  it('n = 0 on an endless piece whose setup throws is kept (the build canvas shows the error)', () => {
+    const throwing = { ...piece, setup: () => { throw new Error('boom'); } } as PieceDefinition;
+    const code = encodeGeneration({ v: 1, s: 'n', p: defaultsOf(schema), n: 0 });
+    expect(initialGeneration(throwing, code, 'abc').gen.n).toBe(0);
+  });
+
   it('repairs params from a decodable code and reports what changed', () => {
     const code = encodeGeneration({ v: 1, s: 'p', p: { ...defaultsOf(schema), num: 50 } });
     const r = initialGeneration(piece, code, 'abc');
@@ -288,5 +311,24 @@ describe('resolvePiece', () => {
   it('uses the real registry by default', () => {
     expect(resolvePiece('flow-ribbons', null)?.slug).toBe('flow-ribbons');
     expect(resolvePiece('nope', null)).toBeUndefined();
+  });
+});
+
+describe('goLive', () => {
+  // A captured-moment link (endless piece with n) → the same generation, live (no n).
+  const moment: GenerationState = { gen: { v: 1, s: 'a', p: defaultsOf(schema), n: 2400 }, issues: ['x'], motion: 'instant' };
+
+  it('drops n, keeps v/s/p and issues, and plays', () => {
+    const after = generationReducer(moment, { type: 'goLive' });
+    expect(after.gen).toEqual({ v: 1, s: 'a', p: moment.gen.p });
+    expect('n' in after.gen).toBe(false);
+    expect(after.issues).toEqual(['x']);
+    expect(after.motion).toBe('play');
+    expect(moment.gen.n).toBe(2400); // not mutated
+  });
+
+  it('is a no-op without n', () => {
+    const live: GenerationState = { gen: { v: 1, s: 'a', p: defaultsOf(schema) }, issues: [], motion: 'play' };
+    expect(generationReducer(live, { type: 'goLive' })).toBe(live);
   });
 });

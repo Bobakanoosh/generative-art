@@ -42,14 +42,14 @@ describe('parseRenderRequest', () => {
     expect(r.ok && r.width).toBe(1200);
   });
 
-  it('clamps width to 16 and the long edge to 4096 (flow-ribbons is 4:5, so height is the long edge)', () => {
+  it('snaps width up the ladder (min 256) and the long edge to 4096 (flow-ribbons is 4:5, so height is the long edge)', () => {
     const hi = parseRenderRequest(q({ slug: 'flow-ribbons', g: goodCode, w: '999999' }));
     const lo = parseRenderRequest(q({ slug: 'flow-ribbons', g: goodCode, w: '10' }));
     expect(hi.ok && hi.width).toBe(3277);
-    expect(lo.ok && lo.width).toBe(16);
+    expect(lo.ok && lo.width).toBe(256);
   });
 
-  it.each([['1e3', 1000], ['12.7', 16], ['800.6', 801], [' 800 ', 800]])('w=%s parses to %i', (w, want) => {
+  it.each([['1e3', 1200], ['12.7', 256], ['800.6', 1200], [' 800 ', 800]])('w=%s parses to %i', (w, want) => {
     const r = parseRenderRequest(q({ slug: 'flow-ribbons', g: goodCode, w }));
     expect(r.ok && r.width).toBe(want);
   });

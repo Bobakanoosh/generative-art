@@ -3,8 +3,9 @@
 import { allVersions, registerPieces } from '@/lib/piece/registry';
 import type { PieceDefinition } from '@/lib/piece/types';
 import flowRibbonsV1 from './flow-ribbons/v1';
+import murmurationV1 from './murmuration/v1';
 
-const PIECES = [flowRibbonsV1] as PieceDefinition[];
+const PIECES = [flowRibbonsV1, murmurationV1] as PieceDefinition[];
 
 // Skip anything already registered so a re-evaluated module (HMR, duplicate
 // bundles sharing the registry) never trips the duplicate-registration guard.

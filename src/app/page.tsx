@@ -1,38 +1,24 @@
-import Image from 'next/image';
-import Link from 'next/link';
-import { galleryItems } from '@/lib/piece/thumbnails';
+import { galleryGroups } from '@/lib/piece/thumbnails';
+import { SITE_DESCRIPTION, SITE_TITLE } from '@/lib/site';
+import { GalleryGroup } from './GalleryGroup';
+import { galleryGroupStyle } from './galleryLayout';
 
 export default function Home() {
-  const items = galleryItems();
+  const groups = galleryGroups();
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6">
-      <h1 className="sr-only">Generative Art</h1>
-      <ul className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {items.map((item) => (
-          <li key={`${item.slug}-${item.code}`}>
-            <Link
-              href={item.href}
-              className="group relative block overflow-hidden rounded-sm bg-neutral-900 outline-offset-2 focus-visible:outline-2 focus-visible:outline-white"
-              style={{ aspectRatio: item.aspect }}
-            >
-              <Image
-                src={item.thumb}
-                alt=""
-                fill
-                sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
-                className="object-cover transition-transform duration-300 group-hover:scale-[1.02]"
-              />
-              <span className="sr-only">{item.title}</span>
-              <span
-                aria-hidden="true"
-                className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-3 pb-2 pt-8 text-sm text-white opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
-              >
-                {item.title}
-              </span>
-            </Link>
-          </li>
+    <main className="mx-auto w-full max-w-[1200px] px-4 pb-24 pt-8 sm:px-6 lg:px-10 lg:pt-10">
+      <h1 className="sr-only">{SITE_TITLE}</h1>
+      {/* Sized like the first group, so the line starts at its left edge on the centred wall. */}
+      <div className="mx-auto w-full lg:max-w-(--group-max)" style={groups[0] ? galleryGroupStyle(groups[0].aspect) : undefined}>
+        <p className="max-w-[52ch] text-sm text-muted">{SITE_DESCRIPTION}</p>
+      </div>
+      <div className="mt-8 divide-y divide-line lg:mt-10">
+        {groups.map((group, k) => (
+          <div key={group.slug} className={k === 0 ? 'pb-14 lg:pb-24' : 'py-14 lg:py-24'}>
+            <GalleryGroup group={group} first={k === 0} />
+          </div>
         ))}
-      </ul>
+      </div>
     </main>
   );
 }

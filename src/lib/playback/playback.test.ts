@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Generation, PieceDefinition } from '@/lib/piece/types';
 import { FRAME_BUDGET_MS, targetStep, type Speed } from './pacing';
+import type { InputLog } from '@/lib/input/log';
 import { createPlayback, type FrameClock, type PlaybackStatus } from './playback';
 
 /** Fake frame clock: `now` is a mutable number; `request` queues callbacks until `tick`. */
@@ -47,9 +48,10 @@ function fakeClock() {
   };
 }
 
-function setup(opts: { total?: number; cost?: number; speed?: Speed; autoplay?: boolean; startAt?: number } = {}) {
+function setup(opts: { input?: InputLog; total?: number; cost?: number; speed?: Speed; autoplay?: boolean; startAt?: number } = {}) {
   const fc = fakeClock();
   const log: number[] = [];
+  const inputLog: [number, string][] = [];
   const cost = opts.cost ?? 0;
   const piece: PieceDefinition<object> = {
     slug: 'fake',
@@ -60,8 +62,9 @@ function setup(opts: { total?: number; cost?: number; speed?: Speed; autoplay?: 
     featured: [],
     setup: () => ({}),
     steps: () => opts.total ?? 1000,
-    step: (_ctx, _state, i) => {
+    step: (_ctx, _state, i, inp) => {
       log.push(i);
+      inputLog.push([i, JSON.stringify(inp)]);
       fc.advance(cost);
     },
   };
@@ -79,9 +82,10 @@ function setup(opts: { total?: number; cost?: number; speed?: Speed; autoplay?: 
     speed: opts.speed ?? 1,
     autoplay: opts.autoplay ?? true,
     startAt: opts.startAt,
+    input: opts.input,
     clock: fc.clock,
   });
-  return { pb, log, fc, piece, ctx, gen };
+  return { pb, log, inputLog, fc, piece, ctx, gen };
 }
 
 const range = (n: number, from = 0) => Array.from({ length: n }, (_, i) => from + i);
@@ -478,5 +482,28 @@ describe('createPlayback', () => {
     expect(() =>
       createPlayback({ piece, gen: { v: 1, s: 'x', p: {} }, ctx, widthPx: 1, speed: 1, autoplay: true, clock: fc.clock }),
     ).toThrow('Endless piece requires a stop step');
+  });
+});
+
+describe('playback input replay', () => {
+  const input: InputLog = { p: [[3, 100, 200, 1], [4]], k: [[5, 'a']] };
+
+  it('seek back then forward replays the same input per step as an uninterrupted run', () => {
+    const a = setup({ total: 20, input, autoplay: false });
+    a.pb.finish();
+    a.fc.tick(1000);
+
+    const b = setup({ total: 20, input, autoplay: false });
+    b.pb.seek(12);
+    b.fc.tick(1000);
+    b.pb.seek(2);
+    b.fc.tick(1000);
+    b.pb.finish();
+    b.fc.tick(1000);
+
+    // After the rewind, the tail of b's calls is a full fresh run.
+    expect(b.inputLog.slice(-20)).toEqual(a.inputLog);
+    expect(a.inputLog[3][1]).toContain('"x":10');
+    expect(a.inputLog[5][1]).toContain('"keys":["a"]');
   });
 });

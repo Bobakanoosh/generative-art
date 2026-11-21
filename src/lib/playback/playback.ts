@@ -4,6 +4,7 @@
  * exactly the runner's steps, so a finished playback equals the instant render.
  */
 import type { Generation, PieceDefinition } from '@/lib/piece/types';
+import { replaySource, type InputLog } from '@/lib/input/log';
 import { createRunner, type Runner } from '@/lib/render/runner';
 import { BUILD_DURATION_MS, FRAME_BUDGET_MS, targetStep, type Speed } from './pacing';
 
@@ -63,10 +64,13 @@ export function createPlayback(opts: {
    * Clamped to [0, total] and floored; 0/omitted starts from the beginning.
    */
   startAt?: number;
+  /** Recorded input to replay; each runner (incl. after seek-back) gets a fresh replay source. */
+  input?: InputLog;
   clock: FrameClock;
 }): Playback {
   const { piece, gen, ctx, widthPx, clock } = opts;
-  const newRunner = () => createRunner(piece, gen, ctx, widthPx);
+  const newRunner = () =>
+    createRunner(piece, gen, ctx, widthPx, undefined, opts.input ? replaySource(opts.input) : undefined);
 
   // Created eagerly (setup + clear, no steps) so `total` is known and setup
   // errors (e.g. endless pieces without a stop step) surface here.

@@ -3,6 +3,7 @@ import { defaultsOf, randomizeParams, validateParams } from './schema';
 import { decodeGeneration } from './share';
 import type { Generation, ParamSchema, PieceDefinition } from './types';
 import { getPiece } from '@/pieces';
+import { isLive } from '@/lib/live/live';
 
 export const INVALID_LINK_ISSUE = 'Invalid link — showing defaults';
 
@@ -31,6 +32,8 @@ export type GenerationAction =
   /** `live`: an in-progress change (slider drag) that draws instantly; a commit replays the build. */
   | { type: 'setParam'; schema: ParamSchema; key: string; value: unknown; live: boolean }
   | { type: 'load'; state: GenerationState }
+  /** Leave a captured moment (endless piece with `n`) for the same generation running live. */
+  | { type: 'goLive' }
   | { type: 'dismissIssues' };
 
 /**
@@ -58,8 +61,24 @@ export function generationReducer(state: GenerationState, action: GenerationActi
     }
     case 'load':
       return { ...action.state, motion: 'play' };
+    case 'goLive':
+      if (state.gen.n === undefined) return state;
+      return { ...state, gen: { v: state.gen.v, s: state.gen.s, p: state.gen.p }, motion: 'play' };
     case 'dismissIssues':
       return state.issues.length ? { ...state, issues: [] } : state;
+  }
+}
+
+/**
+ * A live piece stopped at step 0 is an empty canvas, not a moment worth
+ * showing: `n = 0` on an endless/interactive generation means "no stop step"
+ * (open it running live). Build pieces keep `n = 0` (the start of the build).
+ */
+function runsLive(piece: PieceDefinition, gen: Generation): boolean {
+  try {
+    return isLive(piece, gen);
+  } catch {
+    return false; // setup threw: the build canvas shows the error
   }
 }
 
@@ -83,7 +102,7 @@ export function initialGeneration(
 
   const { params, issues } = validateParams(piece.schema, decoded.p);
   const gen: Generation = { v: decoded.v, s: decoded.s, p: params };
-  if (decoded.n !== undefined) gen.n = decoded.n;
+  if (decoded.n !== undefined && !(decoded.n === 0 && runsLive(piece, gen))) gen.n = decoded.n;
   return { gen, issues, motion: 'play' };
 }
 

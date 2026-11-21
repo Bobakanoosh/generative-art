@@ -39,7 +39,13 @@ Draw in **logical units**: the width is always 1000 (`LOGICAL_WIDTH`), the heigh
 The runner calls `setup(params, rng)` once, then `step(ctx, state, i, input)` for `i = 0 .. steps(state) - 1`. There is no wall clock. One step is one fixed tick, `DT = 1/60` s (both `DT` and `LOGICAL_WIDTH` are exported from `@/lib/render/runner`); for seconds use `i * DT`. What a step does may depend only on `state` and `i`.
 - Paint the background in `step` when `i === 0`.
 - A share code may carry `n` (stop step), so the runner must be able to stop at any step and give the same image the server would.
-- Kinds: **build** (finite `steps`) is all that exists today. **Endless** (`steps` = `Infinity`, requires `n` to render) and **interactive** (pointer/keys in `input`, recorded and replayed) are coming in Plan 3. `input` and `interactive` exist in the types but are inert; do not use them yet, and `steps()` must be finite.
+- Kinds: **build** (finite `steps`). **Endless** (`steps` = `Infinity`): runs live at 60 steps/s until `MAX_STOP_STEP`; every share code needs `n`, so featured codes for endless pieces must carry `n`. **Interactive** (`interactive: true`): `input` is live data, see below. Reference: `src/pieces/murmuration/v1` (endless and interactive).
+
+### Input (`InputFrame`)
+`input: { pointer: { x, y, down } | null; keys: string[] }` is what the visitor did **at step `i`**: `pointer` is the latest pointer state (`null` = no pointer, e.g. left the canvas) in logical units, `down` is button/touch pressed; `keys` are key presses that landed on exactly that step (a key appears once, not while held). Pointer coordinates are **quantized**: `x = qx / 10` with integer `qx`, so server replays match the browser exactly. Treat `input` as the only source of interaction; never read DOM events. The input log (`InputLog`) is replayed through `createRunner(..., input)`; a non-interactive piece ignores it.
+
+### `loopSteps`
+Optional: the step count after which the piece repeats seamlessly, used for seamless live video loops. Must be a positive multiple of 4 (video frames are every 2 steps for MP4, every 4 for GIF); `tests/loopSteps.test.ts` enforces it.
 
 ### Pacing and phases
 The player paces a build to about 10 s at 1x whatever its step count (eased, slow start, faster finish), so `steps` should reflect visual progression: each step should add a visible increment, and avoid one giant step that does most of the drawing. `phases[].at` is a step index; the player draws a labelled tick at `at / steps` on the scrub bar. Pacing is viewer-only and never changes the final image.

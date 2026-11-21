@@ -36,7 +36,7 @@ export default async function PrintPage({ params, searchParams }: PageProps<'/ar
 
   return (
     <main className="flex flex-1 flex-col">
-      <Suspense fallback={<p className="p-6 text-sm opacity-60">Loading print layout…</p>}>
+      <Suspense fallback={<p className="px-4 py-6 text-[13px] text-muted sm:px-6">Loading print layout…</p>}>
         <LoadedPrintView slug={slug} searchParams={searchParams} />
       </Suspense>
     </main>

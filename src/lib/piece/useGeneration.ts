@@ -50,6 +50,8 @@ export interface UseGeneration {
   /** `live`: an in-progress drag (drawn instantly); omit/false to commit (replays the build). */
   setParam(key: string, value: unknown, live?: boolean): void;
   dismissIssues(): void;
+  /** Captured moment (endless piece with n) -> the same generation running live; pushes a history entry. */
+  goLive(): void;
 }
 
 /**
@@ -170,5 +172,11 @@ export function useGeneration(slug: string, initialCode: string | null, initialS
 
   const dismissIssues = useCallback(() => dispatch({ type: 'dismissIssues' }), []);
 
-  return { piece, state, code, renderDelayMs, regenerate, randomize, reset, setParam, dismissIssues };
+  const goLive = useCallback(() => {
+    historyMode.current = 'push';
+    setRenderDelayMs(0);
+    dispatch({ type: 'goLive' });
+  }, []);
+
+  return { piece, state, code, renderDelayMs, regenerate, randomize, reset, setParam, dismissIssues, goLive };
 }

@@ -71,7 +71,7 @@ Always import registry functions from `@/pieces`, never from `@/lib/piece/regist
 ## 4. Choose featured codes
 `npm test` fails while a registered piece has an empty `featured` (the snapshot test asserts `featured.length > 0`): add at least one code (even a provisional one) before running tests or recording snapshots.
 
-Pick 3 or so strong, varied results. In the panel use **Copy link** and take the `g=` value (the share code); paste each into `featured: [...]`, with a comment of what it is. Codes must have `v` equal to `version`. Programmatic alternative: `encodeGeneration({ v: 1, s: 'seed', p: { ...defaultsOf(schema), ... } })` from `@/lib/piece/share` and `@/lib/piece/schema`. Include **every** param in `p` (missing ones are defaulted with an issue; use full params so the code is stable).
+Pick 3 or so strong, varied results. In the panel use **Copy link** and take the `g=` value (the share code); paste each into `featured: [...]`, with a comment of what it is. Codes must have `v` equal to `version`. **Endless pieces** (`steps` = `Infinity`): every featured and snapshot code must include `n` (the stop step to render, at most `MAX_STOP_STEP`), e.g. `encodeGeneration({ v: 1, s: 'seed', p, n: 1800 })`; in the live view use Capture or note the step to choose `n`. Programmatic alternative: `encodeGeneration({ v: 1, s: 'seed', p: { ...defaultsOf(schema), ... } })` from `@/lib/piece/share` and `@/lib/piece/schema`. Include **every** param in `p` (missing ones are defaulted with an issue; use full params so the code is stable).
 
 ## 5. Snapshots and thumbnails
 Optionally add `snapshotCodes: [...]` (same format, never shown) to pin params or modes the featured codes don't exercise, e.g. each `select` option, booleans flipped, a mid-build `n`. Featured and snapshot codes need recorded hashes in `src/pieces/<slug>/v1/snapshots.json`:
@@ -80,8 +80,11 @@ Optionally add `snapshotCodes: [...]` (same format, never shown) to pin params o
 
 Then `npm test` must pass without the variable. Thumbnails: `npm run thumbs` (renders `public/thumbs/`; it also runs on `prebuild`, but `next dev` does not, so run it to see gallery tiles in dev).
 
-## 6. Check the video export
-Before publishing a build piece, click Record video (and GIF) on its page and watch the result: the build should read well over 8 s and the 2 s hold should show the finished image.
+## 6. Interactive pieces
+Set `interactive: true` and drive behaviour only from `input` (see `piece-contract`). Test in the browser: drag, press keys, leave the canvas, and touch; then click Capture and open the `/c/<id>` link to confirm the replay matches what you saw. Unit-test `step` with hand-built `InputFrame`s and a synthetic `InputLog` through `replaySource`. Run `npm run test:engines` to confirm every JS engine agrees (it covers interactive pieces with a fixed synthetic input log).
 
-## 7. Done iterating?
+## 7. Check the video export
+Before publishing a build piece, click Record video (and GIF) on its page and watch the result: the build should read well over 8 s and the 2 s hold should show the finished image. For endless pieces, record a 5 s clip from the live view instead; if the piece loops, declare `loopSteps` (a multiple of 4) and try the seamless loop option.
+
+## 8. Done iterating?
 Follow `publish-piece`. Until then keep `local: true`.
