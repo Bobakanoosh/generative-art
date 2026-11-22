@@ -31,7 +31,7 @@ afterEach(cleanup);
 describe('site constants', () => {
   it('exports the title and description', () => {
     expect(SITE_TITLE).toBe('Generative Art');
-    expect(SITE_DESCRIPTION).toBe('A portfolio of generative art. Every piece is reproducible from a share link.');
+    expect(SITE_DESCRIPTION).toBe('A collection of generative art. Every piece is reproducible from a shareable link. Each one is programmatically generated and completely configurable — try it yourself in one of the pieces.');
   });
 });
 
