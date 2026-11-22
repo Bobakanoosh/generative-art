@@ -44,3 +44,6 @@ next-env.d.ts
 /tmp/
 /public/thumbs/
 /.captures/
+
+.vercel
+.env*
