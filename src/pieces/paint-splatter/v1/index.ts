@@ -257,7 +257,6 @@ const piece: PieceDefinition<State> = {
     // Mid-build stop step n=100, defaults, seed snapmid.
     'eyJ2IjoxLCJzIjoic25hcG1pZCIsInAiOnsicG9pbnRzIjozMDAwMCwiYXR0cmFjdGlvbiI6MjUsImppdHRlciI6NCwiZ3Jvd3RoIjowLjA1LCJzaGFwZSI6ImNpcmNsZSIsImNlbnRlckJpYXMiOjAsIm9wYWNpdHkiOjAuMjcsIm91dGxpbmUiOnRydWUsImNvbG9yTW9kZSI6ImVhcnRoIiwicGFsZXR0ZSI6WyIjZjU1NTNlIiwiIzY4OGE5NCIsIiNjMDMyMjEiLCIjNTQ1ZTc1Il0sImJhY2tncm91bmQiOiIjMDAwMDAwIn0sIm4iOjEwMH0',
   ],
-  local: true,
   setup,
   step: (ctx, state, i) => step(ctx, state, i),
   steps: (state) => state.steps,

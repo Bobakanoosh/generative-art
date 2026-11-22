@@ -124,8 +124,8 @@ const piece: PieceDefinition<State> = {
   featured: [
     // Defaults: 360 frames, orange and blue, seed b1.
     'eyJ2IjoxLCJzIjoiYjEiLCJwIjp7ImZyYW1lcyI6MzYwLCJyYXRlIjoxLCJqaXR0ZXIiOjEsImFscGhhIjowLjEyLCJsaW5lV2lkdGgiOjEsInBhbGV0dGUiOlsiI2Y1NTUzZSIsIiM2ODhhOTQiXSwiYmFja2dyb3VuZCI6IiMzMTI3MmQifX0',
-    // 1440 frames at half rate, wide jitter, faint, seed b2.
-    'eyJ2IjoxLCJzIjoiYjIiLCJwIjp7ImZyYW1lcyI6MTQ0MCwicmF0ZSI6MC41LCJqaXR0ZXIiOjIuNSwiYWxwaGEiOjAuMDUsImxpbmVXaWR0aCI6MSwicGFsZXR0ZSI6WyIjZjU1NTNlIiwiIzY4OGE5NCJdLCJiYWNrZ3JvdW5kIjoiIzMxMjcyZCJ9fQ',
+    // 1440 frames at half rate, wide jitter, faint, seed b5 (b2 rasterizes differently on Linux and Windows).
+    'eyJ2IjoxLCJzIjoiYjUiLCJwIjp7ImZyYW1lcyI6MTQ0MCwicmF0ZSI6MC41LCJqaXR0ZXIiOjIuNSwiYWxwaGEiOjAuMDUsImxpbmVXaWR0aCI6MSwicGFsZXR0ZSI6WyIjZjU1NTNlIiwiIzY4OGE5NCJdLCJiYWNrZ3JvdW5kIjoiIzMxMjcyZCJ9fQ',
     // Green and red on grey, seed ggr.
     'eyJ2IjoxLCJzIjoiZ2dyIiwicCI6eyJmcmFtZXMiOjcyMCwicmF0ZSI6MC41LCJqaXR0ZXIiOjEuNiwiYWxwaGEiOjAuMDgsImxpbmVXaWR0aCI6MSwicGFsZXR0ZSI6WyIjODJmZjhhIiwiI2ZmNjE2MSJdLCJiYWNrZ3JvdW5kIjoiIzIzMjMyMyJ9fQ',
   ],
@@ -133,7 +133,6 @@ const piece: PieceDefinition<State> = {
     // Mid-build stop step n=90, defaults, seed snapmid.
     'eyJ2IjoxLCJzIjoic25hcG1pZCIsInAiOnsiZnJhbWVzIjozNjAsInJhdGUiOjEsImppdHRlciI6MSwiYWxwaGEiOjAuMTIsImxpbmVXaWR0aCI6MSwicGFsZXR0ZSI6WyIjZjU1NTNlIiwiIzY4OGE5NCJdLCJiYWNrZ3JvdW5kIjoiIzMxMjcyZCJ9LCJuIjo5MH0',
   ],
-  local: true,
   accumulates: true,
   setup,
   step: (ctx, state, i) => step(ctx, state, i),
