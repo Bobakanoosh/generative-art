@@ -7,7 +7,7 @@ import { IconButton } from './IconButton';
 import { Icon, ICON_NAMES } from './Icon';
 import { Dialog } from './Dialog';
 import { SiteHeader } from './SiteHeader';
-import { SITE_DESCRIPTION, SITE_TITLE } from '@/lib/site';
+import { ARTIST_NAME, ARTIST_URL, SITE_DESCRIPTION, SITE_TITLE } from '@/lib/site';
 
 // jsdom has <dialog> but not showModal/close; give it a minimal shim.
 beforeAll(() => {
@@ -258,5 +258,17 @@ describe('SiteHeader', () => {
     const link = screen.getByRole('link', { name: SITE_TITLE });
     expect(banner.contains(link)).toBe(true);
     expect(link.getAttribute('href')).toBe('/');
+  });
+
+  it("names the artist, linking out to the artist's main site", () => {
+    render(<SiteHeader />);
+    const banner = screen.getByRole('banner');
+    const artist = screen.getByRole('link', { name: ARTIST_NAME });
+    expect(banner.contains(artist)).toBe(true);
+    expect(artist.getAttribute('href')).toBe('https://jackenglund.com');
+    expect(ARTIST_URL).toBe('https://jackenglund.com');
+    // The name comes before the site title, read as a breadcrumb.
+    const links = Array.from(banner.querySelectorAll('a')).map((a) => a.textContent);
+    expect(links).toEqual([ARTIST_NAME, SITE_TITLE]);
   });
 });
