@@ -16,7 +16,7 @@
 import { TAU, cos, pow, sin } from '@/lib/art/math';
 import { rgba } from '@/lib/art/color';
 import type { Rng } from '@/lib/art/rng';
-import type { ParamSchema, Params, PieceDefinition } from '@/lib/piece/types';
+import { defineSchema, type ParamsOf, type PieceDefinition } from '@/lib/piece/types';
 
 const ASPECT = 1;
 const W = 1000;
@@ -37,7 +37,7 @@ const PALETTES: string[][] = [
   ['#e9c46a', '#f4a261', '#e76f51', '#2a9d8f'],
 ];
 
-const schema: ParamSchema = {
+const schema = defineSchema({
   points: {
     kind: 'integer', default: 30000, min: 2000, max: 40000,
     label: 'Points', group: 'Growth',
@@ -73,7 +73,8 @@ const schema: ParamSchema = {
     label: 'Palette', group: 'Color',
   },
   background: { kind: 'color', default: '#000000', label: 'Background', group: 'Color' },
-};
+});
+type P = ParamsOf<typeof schema>;
 
 interface State {
   xs: Float64Array; // logical units
@@ -139,16 +140,16 @@ export function createNearestGrid(xs: ArrayLike<number>, ys: ArrayLike<number>, 
   };
 }
 
-function setup(params: Params, rng: Rng): State {
-  const n = params.points as number;
-  const attraction = params.attraction as number;
-  const jitter = params.jitter as number;
-  const growth = params.growth as number;
+function setup(params: P, rng: Rng): State {
+  const n = params.points;
+  const attraction = params.attraction;
+  const jitter = params.jitter;
+  const growth = params.growth;
   const square = params.shape === 'square';
-  const exponent = 0.5 + 0.5 * (params.centerBias as number);
+  const exponent = 0.5 + 0.5 * params.centerBias;
   const usePalette = params.colorMode === 'palette';
-  const palette = params.palette as string[];
-  const opacity = params.opacity as number;
+  const palette = params.palette;
+  const opacity = params.opacity;
 
   const xs = new Float64Array(n);
   const ys = new Float64Array(n);
@@ -215,9 +216,9 @@ function setup(params: Params, rng: Rng): State {
     xs, ys, rs, colors, group,
     perStep,
     steps: Math.ceil(n / perStep),
-    outline: params.outline as boolean,
+    outline: params.outline,
     outlineColor: '#000000',
-    background: params.background as string,
+    background: params.background,
   };
 }
 
@@ -238,7 +239,7 @@ function step(ctx: CanvasRenderingContext2D, s: State, i: number): void {
   }
 }
 
-const piece: PieceDefinition<State> = {
+const piece: PieceDefinition<State, P> = {
   slug: 'colonies',
   version: 1,
   title: 'Colonies',

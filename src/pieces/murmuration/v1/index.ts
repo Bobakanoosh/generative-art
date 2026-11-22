@@ -16,7 +16,7 @@ import { createNoise3D } from '@/lib/art/noise';
 import type { Rng } from '@/lib/art/rng';
 import { rgba } from '@/lib/art/color';
 import { log, pow } from '@/lib/art/math';
-import type { InputFrame, ParamSchema, Params, PieceDefinition } from '@/lib/piece/types';
+import { defineSchema, type InputFrame, type ParamsOf, type PieceDefinition } from '@/lib/piece/types';
 
 const ASPECT = 1;
 const W = 1000;
@@ -55,7 +55,7 @@ const PALETTES: string[][] = [
   ['#ffe3a3', '#ffb35c', '#f0763f', '#b8405e', '#fff4e0'], // ember
 ];
 
-const schema: ParamSchema = {
+const schema = defineSchema({
   count: {
     kind: 'integer', default: 600, min: 100, max: 1500,
     label: 'Birds', description: 'Number of particles in the flocks.', group: 'Flock',
@@ -88,7 +88,8 @@ const schema: ParamSchema = {
     label: 'Palette', group: 'Color',
   },
   background: { kind: 'color', default: '#0b0b10', label: 'Background', group: 'Color' },
-};
+});
+type P = ParamsOf<typeof schema>;
 
 interface State {
   n: number;
@@ -129,11 +130,11 @@ interface State {
   veilEvery: number;
 }
 
-function setup(params: Params, rng: Rng): State {
-  const n = params.count as number;
-  const palette = params.palette as string[];
-  const background = params.background as string;
-  const trail = params.trail as number;
+function setup(params: P, rng: Rng): State {
+  const n = params.count;
+  const palette = params.palette;
+  const background = params.background;
+  const trail = params.trail;
   const wind = createNoise3D(rng);
   const detail = createNoise3D(rng);
 
@@ -187,9 +188,9 @@ function setup(params: Params, rng: Rng): State {
     lx: Float64Array.from(xs),
     ly: Float64Array.from(ys),
     strokes: palette.map((c) => rgba(c, STROKE_ALPHA)),
-    freq: (params.noiseScale as number) / W,
-    speed: params.speed as number,
-    radius: params.radius as number,
+    freq: params.noiseScale / W,
+    speed: params.speed,
+    radius: params.radius,
     repel: params.mode === 'repel',
     background,
     veil: rgba(background, veilAlpha),
@@ -409,7 +410,7 @@ function step(ctx: CanvasRenderingContext2D, s: State, i: number, input: InputFr
   }
 }
 
-const piece: PieceDefinition<State> = {
+const piece: PieceDefinition<State, P> = {
   slug: 'murmuration',
   version: 1,
   title: 'Murmuration',

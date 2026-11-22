@@ -10,7 +10,7 @@ import { HALF_PI, atan2, clamp, cos, sin, smoothstep } from '@/lib/art/math';
 import { createNoise2D } from '@/lib/art/noise';
 import type { Rng } from '@/lib/art/rng';
 import { mixHex, rgba } from '@/lib/art/color';
-import type { ParamSchema, Params, PieceDefinition } from '@/lib/piece/types';
+import { defineSchema, type ParamsOf, type PieceDefinition } from '@/lib/piece/types';
 
 const ASPECT = 4 / 5;
 const W = 1000;
@@ -27,7 +27,7 @@ const PALETTES: string[][] = [
   ['#fefae0', '#dda15e', '#bc6c25', '#a3b18a', '#588157'],
 ];
 
-const schema: ParamSchema = {
+const schema = defineSchema({
   particles: {
     kind: 'integer', default: 1800, min: 200, max: 6000,
     label: 'Particles', description: 'Total strands across all ribbons.', group: 'Flow',
@@ -62,7 +62,8 @@ const schema: ParamSchema = {
     kind: 'boolean', default: true,
     label: 'Fade in', description: 'Ribbons emerge gradually instead of starting abruptly.', group: 'Style',
   },
-};
+});
+type P = ParamsOf<typeof schema>;
 
 interface Band {
   color: string;
@@ -115,12 +116,12 @@ function edgeFade(x: number, y: number) {
   return d <= 0 ? 0 : d >= EDGE_FADE ? 1 : smoothstep(0, EDGE_FADE, d);
 }
 
-function setup(params: Params, rng: Rng): State {
-  const particles = params.particles as number;
-  const length = params.length as number;
-  const palette = params.palette as string[];
-  const field = makeField(rng, params.noiseScale as number, params.turbulence as number);
-  const lineWidth = params.lineWidth as number;
+function setup(params: P, rng: Rng): State {
+  const particles = params.particles;
+  const length = params.length;
+  const palette = params.palette;
+  const field = makeField(rng, params.noiseScale, params.turbulence);
+  const lineWidth = params.lineWidth;
 
   const ribbonCount = clamp(Math.round(Math.sqrt(particles) * 0.8), 5, 90);
   const xs = new Float64Array(particles);
@@ -175,10 +176,10 @@ function setup(params: Params, rng: Rng): State {
   return {
     xs, ys, alive, phase, ribbons, field,
     steps: length,
-    alpha: params.alpha as number,
-    fadeIn: params.fadeIn as boolean,
+    alpha: params.alpha,
+    fadeIn: params.fadeIn,
     dots: params.mode === 'dots',
-    background: params.background as string,
+    background: params.background,
   };
 }
 
@@ -240,7 +241,7 @@ function step(ctx: CanvasRenderingContext2D, s: State, i: number): void {
   ctx.globalAlpha = 1;
 }
 
-const piece: PieceDefinition<State> = {
+const piece: PieceDefinition<State, P> = {
   slug: 'flow-ribbons',
   version: 1,
   title: 'Flow Ribbons',

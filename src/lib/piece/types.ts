@@ -15,6 +15,39 @@ export type ParamMeta = { label: string; description?: string; group?: string; r
 export type ParamSchema = Record<string, ParamSpec & ParamMeta>;
 export type Params = Record<string, unknown>;
 
+/** The value type of one param spec: `select` narrows to its options when they are literal. */
+export type ParamValue<P extends ParamSpec> = P extends { kind: 'number' | 'integer' }
+  ? number
+  : P extends { kind: 'boolean' }
+    ? boolean
+    : P extends { kind: 'color' }
+      ? string
+      : P extends { kind: 'select'; options: readonly (infer O extends string)[] }
+        ? O
+        : P extends { kind: 'multiselect'; options: readonly (infer O extends string)[] }
+          ? O[]
+          : P extends { kind: 'palette' }
+            ? string[]
+            : never;
+
+/**
+ * Validated params of a schema, typed per key. A wide `ParamSchema` (any
+ * string key) gives plain `Params`, so generic code (runner, registry) is
+ * unaffected.
+ */
+export type ParamsOf<S extends ParamSchema> = string extends keyof S
+  ? Params
+  : { readonly [K in keyof S]: ParamValue<S[K]> };
+
+/**
+ * Declare a piece's schema with its literal types kept, so `ParamsOf<typeof
+ * schema>` knows each key's type (and each `select`'s options):
+ * `const schema = defineSchema({ ... })`. Returns its argument unchanged.
+ */
+export function defineSchema<const S extends ParamSchema>(schema: S): S {
+  return schema;
+}
+
 /** Pointer/keys in logical drawing coordinates. */
 export interface InputFrame {
   pointer: { x: number; y: number; down: boolean } | null;
@@ -28,7 +61,11 @@ export interface Generation {
   n?: number;
 }
 
-export interface PieceDefinition<S = unknown> {
+/**
+ * `S` is the piece's state; `P` the params `setup` and `fastForward` receive,
+ * usually `ParamsOf<typeof schema>` for a schema made with `defineSchema`.
+ */
+export interface PieceDefinition<S = unknown, P = Params> {
   slug: string;
   version: number;
   title: string;
@@ -59,10 +96,10 @@ export interface PieceDefinition<S = unknown> {
    * switched off. Must give byte-identical images; see src/lib/render/fastForward.ts.
    */
   fastForward?: {
-    keep(params: Params): number | undefined;
-    prime(ctx: CanvasRenderingContext2D, params: Params): void;
+    keep(params: P): number | undefined;
+    prime(ctx: CanvasRenderingContext2D, params: P): void;
   };
-  setup(params: Params, rng: Rng): S;
+  setup(params: P, rng: Rng): S;
   step(ctx: CanvasRenderingContext2D, state: S, i: number, input: InputFrame): void;
   steps(state: S): number;
 }

@@ -13,7 +13,7 @@
 import { PI, clamp, tan } from '@/lib/art/math';
 import type { Rng } from '@/lib/art/rng';
 import { rgba } from '@/lib/art/color';
-import type { ParamSchema, Params, PieceDefinition } from '@/lib/piece/types';
+import { defineSchema, type ParamsOf, type PieceDefinition } from '@/lib/piece/types';
 
 const ASPECT = 1;
 const W = 1000;
@@ -32,7 +32,7 @@ const PALETTES: string[][] = [
   ['#e9c46a', '#2a9d8f'],
 ];
 
-const schema: ParamSchema = {
+const schema = defineSchema({
   frames: {
     kind: 'integer', default: 360, min: 30, max: 1440,
     label: 'Frames', description: 'Pairs of curves drawn; 180 is one full sweep of the tangent.', group: 'Drift',
@@ -58,7 +58,8 @@ const schema: ParamSchema = {
     label: 'Palette', group: 'Color',
   },
   background: { kind: 'color', default: '#31272d', label: 'Background', group: 'Color' },
-};
+});
+type P = ParamsOf<typeof schema>;
 
 interface State {
   /** Per frame: the two random control-point x coordinates (sketch units). */
@@ -70,9 +71,9 @@ interface State {
   background: string;
 }
 
-function setup(params: Params, rng: Rng): State {
-  const frames = params.frames as number;
-  const jitter = params.jitter as number;
+function setup(params: P, rng: Rng): State {
+  const frames = params.frames;
+  const jitter = params.jitter;
   const r1 = new Float64Array(frames);
   const r2 = new Float64Array(frames);
   for (let i = 0; i < frames; i++) {
@@ -80,14 +81,14 @@ function setup(params: Params, rng: Rng): State {
     r1[i] = 950 + (rng.range(900, 1000) - 950) * jitter;
     r2[i] = 500 + (rng.range(0, 1000) - 500) * jitter;
   }
-  const [a, b] = params.palette as string[];
-  const alpha = params.alpha as number;
+  const [a, b] = params.palette;
+  const alpha = params.alpha;
   return {
     r1, r2,
-    rate: params.rate as number,
+    rate: params.rate,
     colors: [rgba(a, alpha), rgba(b, alpha)],
-    lineWidth: params.lineWidth as number,
-    background: params.background as string,
+    lineWidth: params.lineWidth,
+    background: params.background,
   };
 }
 
@@ -114,7 +115,7 @@ function step(ctx: CanvasRenderingContext2D, s: State, i: number): void {
   ctx.restore();
 }
 
-const piece: PieceDefinition<State> = {
+const piece: PieceDefinition<State, P> = {
   slug: 'bezier-drift',
   version: 1,
   title: 'Bezier Drift',

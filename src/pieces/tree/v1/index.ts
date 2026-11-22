@@ -13,7 +13,7 @@
  */
 import { PI, cos, sin } from '@/lib/art/math';
 import type { Rng } from '@/lib/art/rng';
-import type { ParamSchema, Params, PieceDefinition } from '@/lib/piece/types';
+import { defineSchema, type ParamsOf, type PieceDefinition } from '@/lib/piece/types';
 
 const ASPECT = 1;
 const W = 1000;
@@ -29,7 +29,7 @@ const PALETTES: string[][] = [
   ['#17d297', '#96b7b5'],
 ];
 
-const schema: ParamSchema = {
+const schema = defineSchema({
   branches: {
     kind: 'integer', default: 4, min: 1, max: 7,
     label: 'Branches', description: 'Arms on the root ring; each child has fewer.', group: 'Growth',
@@ -75,7 +75,8 @@ const schema: ParamSchema = {
     label: 'Palette', group: 'Color',
   },
   background: { kind: 'color', default: '#31272d', label: 'Background', group: 'Color' },
-};
+});
+type P = ParamsOf<typeof schema>;
 
 type Op =
   | { kind: 'ring'; x: number; y: number; d: number; color: string }
@@ -100,13 +101,13 @@ const toWorld = (f: Frame, x: number, y: number) => ({
   y: f.oy + x * sin(f.a) + y * cos(f.a),
 });
 
-function setup(params: Params, rng: Rng): State {
-  const minDist = Math.min(params.minDist as number, params.maxDist as number);
-  const maxDist = Math.max(params.minDist as number, params.maxDist as number);
-  const margin = params.margin as number;
-  const restrictAdj = (params.restrict as number) / 4;
-  const shrink = params.shrink as number;
-  const [c0, c1] = params.palette as string[];
+function setup(params: P, rng: Rng): State {
+  const minDist = Math.min(params.minDist, params.maxDist);
+  const maxDist = Math.max(params.minDist, params.maxDist);
+  const margin = params.margin;
+  const restrictAdj = params.restrict / 4;
+  const shrink = params.shrink;
+  const [c0, c1] = params.palette;
   const ops: Op[] = [];
   let nodes = 0;
 
@@ -134,15 +135,15 @@ function setup(params: Params, rng: Rng): State {
       }
     }
   };
-  grow({ ox: SRC / 2, oy: SRC / 2, a: 0 }, 0, 0, params.rootRadius as number, params.branches as number, 1);
+  grow({ ox: SRC / 2, oy: SRC / 2, a: 0 }, 0, 0, params.rootRadius, params.branches, 1);
 
-  const weight = params.weight as number;
-  const zoom = params.zoom as number;
+  const weight = params.weight;
+  const zoom = params.zoom;
   // Source-space point that lands in the middle of the frame, and its scale.
   let cx = SRC / 2;
   let cy = SRC / 2;
   let k = (W / SRC) * zoom;
-  if (params.fit as boolean) {
+  if (params.fit) {
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     const add = (x: number, y: number, r: number) => {
       x0 = Math.min(x0, x - r); x1 = Math.max(x1, x + r);
@@ -166,7 +167,7 @@ function setup(params: Params, rng: Rng): State {
     k,
     tx: W / 2 - cx * k,
     ty: H / 2 - cy * k,
-    background: params.background as string,
+    background: params.background,
   };
 }
 
@@ -192,7 +193,7 @@ function step(ctx: CanvasRenderingContext2D, s: State, i: number): void {
   ctx.restore();
 }
 
-const piece: PieceDefinition<State> = {
+const piece: PieceDefinition<State, P> = {
   slug: 'tree',
   version: 1,
   title: 'Tree',

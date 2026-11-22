@@ -12,7 +12,7 @@ import coloniesV2 from './colonies/v2';
 import tangentFieldV1 from './tangent-field/v1';
 import treeV1 from './tree/v1';
 
-const PIECES = [flowRibbonsV1, murmurationV1, murmurationV2, coloniesV1, coloniesV2, crystalsV1, treeV1, tangentFieldV1, bezierDriftV1] as PieceDefinition[];
+const PIECES: PieceDefinition[] = [flowRibbonsV1, murmurationV1, murmurationV2, coloniesV1, coloniesV2, crystalsV1, treeV1, tangentFieldV1, bezierDriftV1];
 
 // Skip anything already registered so a re-evaluated module (HMR, duplicate
 // bundles sharing the registry) never trips the duplicate-registration guard.

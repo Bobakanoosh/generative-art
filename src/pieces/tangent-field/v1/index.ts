@@ -13,7 +13,7 @@
 import { PI, cos, sin, tan } from '@/lib/art/math';
 import type { Rng } from '@/lib/art/rng';
 import { rgba } from '@/lib/art/color';
-import type { ParamSchema, Params, PieceDefinition } from '@/lib/piece/types';
+import { defineSchema, type ParamsOf, type PieceDefinition } from '@/lib/piece/types';
 
 const ASPECT = 1;
 const W = 1000;
@@ -29,7 +29,7 @@ const PALETTES: string[][] = [
   ['#e9c46a', '#f4a261', '#e76f51'],
 ];
 
-const schema: ParamSchema = {
+const schema = defineSchema({
   frequency: {
     kind: 'integer', default: 500, min: 1, max: 2000,
     label: 'Frequency', description: 'How tightly the tangent bands repeat.', group: 'Field',
@@ -59,7 +59,8 @@ const schema: ParamSchema = {
     label: 'Palette', group: 'Color',
   },
   background: { kind: 'color', default: '#1e1e1e', label: 'Background', group: 'Color' },
-};
+});
+type P = ParamsOf<typeof schema>;
 
 interface State {
   /** Per stroke: transform a b c d e f (sketch units), length, colour index. */
@@ -73,13 +74,13 @@ interface State {
   background: string;
 }
 
-function setup(params: Params, rng: Rng): State {
-  const count = params.count as number;
-  const f = (params.frequency as number) / 50000;
-  const shear = (params.shear as number) / 500000;
-  const maxLength = params.maxLength as number;
-  const palette = params.palette as string[];
-  const alpha = params.alpha as number;
+function setup(params: P, rng: Rng): State {
+  const count = params.count;
+  const f = params.frequency / 50000;
+  const shear = params.shear / 500000;
+  const maxLength = params.maxLength;
+  const palette = params.palette;
+  const alpha = params.alpha;
 
   // Running shear matrix [a c; b d]: each stroke post-multiplies
   // shearX(s) * shearY(-s), exactly as the sketch's loop did.
@@ -118,10 +119,10 @@ function setup(params: Params, rng: Rng): State {
   return {
     m, len, color,
     colors: palette.map((h) => rgba(h, alpha)),
-    lineWidth: params.lineWidth as number,
+    lineWidth: params.lineWidth,
     perStep,
     steps: Math.ceil(count / perStep),
-    background: params.background as string,
+    background: params.background,
   };
 }
 
@@ -146,7 +147,7 @@ function step(ctx: CanvasRenderingContext2D, s: State, i: number): void {
   }
 }
 
-const piece: PieceDefinition<State> = {
+const piece: PieceDefinition<State, P> = {
   slug: 'tangent-field',
   version: 1,
   title: 'Tangent Field',

@@ -11,7 +11,7 @@
  */
 import { PI, cos, sin } from '@/lib/art/math';
 import type { Rng } from '@/lib/art/rng';
-import type { ParamSchema, Params, PieceDefinition } from '@/lib/piece/types';
+import { defineSchema, type ParamsOf, type PieceDefinition } from '@/lib/piece/types';
 
 const ASPECT = 3 / 4;
 const W = 1000;
@@ -29,7 +29,7 @@ const PALETTES: string[][] = [
   ['#17d297', '#96b7b5', '#dcdcdc', '#202543'],
 ];
 
-const schema: ParamSchema = {
+const schema = defineSchema({
   columns: {
     kind: 'integer', default: 3, min: 1, max: 8,
     label: 'Columns', description: 'Crystals per row; rows fill the frame.', group: 'Layout',
@@ -51,7 +51,8 @@ const schema: ParamSchema = {
     label: 'Palette', group: 'Color',
   },
   background: { kind: 'color', default: '#31272d', label: 'Background', group: 'Color' },
-};
+});
+type P = ParamsOf<typeof schema>;
 
 type Layer =
   | { kind: 'circles'; color: string; sides: number }
@@ -139,12 +140,12 @@ function pickLayers(rng: Rng, sides: number, palette: string[], lo: number, hi: 
   return KINDS.slice(0, lo).map(({ kind }) => makeLayer(kind, rng, sides, palette));
 }
 
-function setup(params: Params, rng: Rng): State {
-  const columns = params.columns as number;
-  const sides = params.sides as number;
-  const palette = params.palette as string[];
-  const a = params.minLayers as number;
-  const b = params.maxLayers as number;
+function setup(params: P, rng: Rng): State {
+  const columns = params.columns;
+  const sides = params.sides;
+  const palette = params.palette;
+  const a = params.minLayers;
+  const b = params.maxLayers;
   const lo = Math.min(a, b);
   const hi = Math.max(a, b);
 
@@ -162,7 +163,7 @@ function setup(params: Params, rng: Rng): State {
       for (const layer of pickLayers(rng, sides, palette, lo, hi)) ops.push({ crystal: at, layer });
     }
   }
-  return { ops, scale: crystal / SIZE, background: params.background as string };
+  return { ops, scale: crystal / SIZE, background: params.background };
 }
 
 // --- drawing helpers (sketch units, degrees like the sketch) ---------------
@@ -300,7 +301,7 @@ function step(ctx: CanvasRenderingContext2D, s: State, i: number): void {
   ctx.restore();
 }
 
-const piece: PieceDefinition<State> = {
+const piece: PieceDefinition<State, P> = {
   slug: 'crystals',
   version: 1,
   title: 'Crystals',

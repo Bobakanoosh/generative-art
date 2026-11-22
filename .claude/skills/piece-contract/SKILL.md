@@ -5,25 +5,28 @@ description: The PieceDefinition interface every generative piece implements - l
 
 # Piece contract
 
-A piece is the default export of a `PieceDefinition<State>` (`src/lib/piece/types.ts`) at `src/pieces/<slug>/v<N>/index.ts`. **Reference implementation: `src/pieces/flow-ribbons/v1/index.ts`** - read it before writing a new one.
+A piece is the default export of a `PieceDefinition<State, P>` (`src/lib/piece/types.ts`) at `src/pieces/<slug>/v<N>/index.ts`. **Reference implementation: `src/pieces/flow-ribbons/v1/index.ts`** - read it before writing a new one.
 
 ```ts
 import type { Rng } from '@/lib/art/rng';
-import type { ParamSchema, Params, PieceDefinition } from '@/lib/piece/types';
+import { defineSchema, type ParamsOf, type PieceDefinition } from '@/lib/piece/types';
+
+const schema = defineSchema({ /* see Params below */ });
+type P = ParamsOf<typeof schema>;
 
 interface State { /* everything step() needs, built in setup() */ }
 
-const piece: PieceDefinition<State> = {
+const piece: PieceDefinition<State, P> = {
   slug: 'my-piece',          // kebab-case, same as the folder name
   version: 1,                // same as the v<N> folder
   title: 'My Piece',
   description: 'One line.',
   aspect: 4 / 5,             // width / height, fixed per piece
-  schema,                    // ParamSchema, see below
+  schema,                    // from defineSchema, see below
   featured: [],              // share codes: gallery tiles, thumbnails, snapshots
   snapshotCodes: [],         // optional: extra share codes that are only snapshot-tested
   local: true,               // hidden in production until removed
-  setup(params: Params, rng: Rng): State { /* ... */ },
+  setup(params: P, rng: Rng): State { /* ... */ },
   step(ctx, state, i, input) { /* draw step i */ },
   steps: (state) => state.totalSteps,
 };
@@ -54,7 +57,7 @@ The player paces a build to about 10 s at 1x whatever its step count (eased, slo
 Pieces draw onto the existing canvas each step; translucent strokes accumulate. Set `accumulates: true` when the look of step N depends on pixels from earlier steps. **Never read pixels back** (`getImageData` is lint-banned and platform dependent). Keep any history you need in `state` and redraw from it.
 
 ## Params
-`ParamSchema = Record<string, ParamSpec & { label, description?, group?, randomize? }>`. `setup` receives params already validated (clamped, defaulted, unknown keys dropped), read with a cast: `params.count as number`.
+`ParamSchema = Record<string, ParamSpec & { label, description?, group?, randomize? }>`. `setup` (and `fastForward`) receive params already validated (clamped, defaulted, unknown keys dropped). Declare the schema with `defineSchema({...})` (not a `: ParamSchema` annotation, which erases the literal types) and type params as `ParamsOf<typeof schema>`: each key gets its value type, so no casts (`params.count`, not `params.count as number`). Value types: `number`/`integer` -> `number`, `boolean` -> `boolean`, `color` -> `string`, `palette` -> `string[]`, `select` -> union of its options, `multiselect` -> array of that union.
 
 | kind | fields |
 |---|---|
@@ -67,12 +70,13 @@ Pieces draw onto the existing canvas each step; translucent strokes accumulate. 
 | `multiselect` | `default: string[], options, minSelected?` |
 
 ```ts
-const schema: ParamSchema = {
+const schema = defineSchema({
   count: { kind: 'integer', default: 500, min: 50, max: 3000, label: 'Count', group: 'Flow' },
   scale: { kind: 'number', default: 1.5, min: 0.3, max: 6, step: 0.05, label: 'Scale' },
   palette: { kind: 'palette', default: ['#e9c46a', '#264653'], minColors: 2, maxColors: 8, presets: PALETTES, label: 'Palette' },
   mode: { kind: 'select', default: 'lines', options: ['lines', 'dots'], label: 'Mode' },
-};
+});
+type P = ParamsOf<typeof schema>; // { count: number; scale: number; palette: string[]; mode: 'lines' | 'dots' }
 ```
 `randomize: false` keeps a param out of the Randomize button. Param keys, ranges, and defaults are part of the frozen contract once deployed (share codes store them).
 

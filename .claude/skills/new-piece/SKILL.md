@@ -12,31 +12,32 @@ Read `piece-contract` and `seeded-randomness-and-determinism` first. Reference: 
 
 ```ts
 import type { Rng } from '@/lib/art/rng';
-import type { ParamSchema, Params, PieceDefinition } from '@/lib/piece/types';
+import { defineSchema, type ParamsOf, type PieceDefinition } from '@/lib/piece/types';
 
 const ASPECT = 1;
 const W = 1000;
 const H = W / ASPECT;
 
-const schema: ParamSchema = {
+const schema = defineSchema({
   count: { kind: 'integer', default: 200, min: 10, max: 1000, label: 'Count' },
   background: { kind: 'color', default: '#101218', label: 'Background' },
-};
+});
+type P = ParamsOf<typeof schema>; // { count: number; background: string }
 
 interface State { xs: number[]; ys: number[]; background: string }
 
-function setup(params: Params, rng: Rng): State {
-  const count = params.count as number;
+function setup(params: P, rng: Rng): State {
+  const count = params.count;
   const xs: number[] = [];
   const ys: number[] = [];
   for (let k = 0; k < count; k++) {
     xs.push(rng.range(0, W));
     ys.push(rng.range(0, H));
   }
-  return { xs, ys, background: params.background as string };
+  return { xs, ys, background: params.background };
 }
 
-const piece: PieceDefinition<State> = {
+const piece: PieceDefinition<State, P> = {
   slug: 'my-piece',
   version: 1,
   title: 'My Piece',
