@@ -31,6 +31,16 @@ describe('proxy', () => {
     expect(res.headers.get('x-middleware-rewrite')).toContain('/_not-found');
   });
 
+  it('permanently redirects a renamed piece (paint-splatter -> colonies), keeping the code and print path', () => {
+    const page = call('/art/paint-splatter?g=abc');
+    expect(page.status).toBe(308);
+    expect(page.headers.get('location')).toBe('http://localhost/art/colonies?g=abc');
+    const print = call('/art/paint-splatter/print?g=abc&paper=a4');
+    expect(print.status).toBe(308);
+    expect(print.headers.get('location')).toBe('http://localhost/art/colonies/print?g=abc&paper=a4');
+    expect(call('/art/colonies?g=abc').status).toBe(200);
+  });
+
   it('matches the piece, capture and print pages', () => {
     expect(config.matcher).toEqual(['/art/:slug', '/art/:slug/print', '/c/:id', '/c/:id/print']);
   });

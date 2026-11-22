@@ -11,6 +11,7 @@ A Next.js site that shows deterministic, versioned, canvas-drawn generative piec
 - Logical drawing space is 1000 wide, `1000 / aspect` tall; fixed timestep `DT = 1/60`.
 - Import registry functions from `@/pieces`, not `@/lib/piece/registry`.
 - Pieces with `local: true` are hidden in production.
+- Renaming a piece: change `slug`/`title` in every version (metadata only, no drawing change), move the folder, and add `old -> new` to `SLUG_ALIASES` in `src/pieces/index.ts`. `getPiece` resolves old slugs (render API, OG links) and `src/proxy.ts` 308-redirects `/art/<old>` (and `/print`) to the new slug, keeping `?g=`. Never reuse an old slug. (paint-splatter -> colonies)
 
 ## Commands
 - `npm run dev` - dev server (does not generate thumbnails)
@@ -36,7 +37,7 @@ URLs: `/art/<slug>?g=<code>` page; `/art/<slug>/print?g=<code>` print page; `/ap
 - Captures (`src/lib/capture`): the Capture dialog saves `{ gen, input }` and returns `/c/<id>` (id = first 12 chars of base64url sha256). `POST /api/captures` saves (body at most 768 KiB, which fits the largest 30 000-event log; rate limited per IP); `/api/render/c/<id>?w=` renders the PNG (503, not 404, when storage fails). Storage is Vercel Blob when `BLOB_READ_WRITE_TOKEN` is set, else the local `.captures/` directory (dev; gitignored).
 - Capture rate limiter (`src/lib/capture/rateLimit.ts`, 10 saves per IP per 10 minutes) is in memory, per server instance (each serverless instance has its own count), and keys on the first `x-vercel-forwarded-for` entry, then `x-real-ip` (never `x-forwarded-for`, which a client can spoof). Both are set by the platform on Vercel; elsewhere make sure the proxy sets `x-real-ip` itself, or every visitor shares the `unknown` bucket.
 - Links: a live piece's link without `n` (or with `n = 0`) opens running live; with `n` it is a captured moment (a build to `n`). Gallery tiles of live pieces open live (the featured code minus `n`), and the OG image of a live link without `n` is the first featured code.
-- Long live renders are slow: a server render (OG image, `/api/render`, capture PNG, print tile) of a moment near `MAX_STOP_STEP` replays every step (murmuration at 100 000 steps and 1500 birds on a dev machine: ~30 s at 100 px, ~90 s at 1200 px, since the trail veil is a full-canvas fill per step). The render routes export `maxDuration = 300` (Vercel fluid-compute limit); `npm run test:slow` budgets 150 s per case (half the limit, for slower hardware). Renders are cached (CDN + capture render cache) and long-moment downloads are smaller, but the first view of a very long moment's OG image or PNG takes 1-2 minutes; that render cost is still open.
+- Long live renders: a server render (OG image, `/api/render`, capture PNG, print tile) of a live moment replays every step. Pieces whose old drawing fades away completely declare `fastForward` (`keep(params)` steps, `prime`), and `renderFinal` (`src/lib/render/fastForward.ts`) runs the earlier steps with drawing switched off: byte-identical (each such piece tests it against a full render), and the cost becomes the simulation alone (murmuration v2 at 100 000 steps and 1500 birds: ~12 s at 1200 px, ~5 s for 20 000 steps at 4096 px). Without it (murmuration v1) every step is drawn: ~90 s at 1200 px, since the trail veil is a full-canvas fill. The render routes export `maxDuration = 300` (Vercel fluid-compute limit); `npm run test:slow` budgets 150 s per case (half the limit, for slower hardware). Renders are cached (CDN + capture render cache).
 - Live video clips (`src/lib/video/liveClip.ts`, `LiveVideoExport`): 5/10/15 s from the current step; `loopSteps` must be a positive multiple of 4.
 - Cross-engine: a piece's simulation must give identical draw calls in V8, JavaScriptCore and SpiderMonkey; `npm run test:engines` checks it (`src/lib/determinism/probe.ts`).
 
@@ -56,4 +57,4 @@ URLs: `/art/<slug>?g=<code>` page; `/art/<slug>/print?g=<code>` print page; `/ap
 
 ## Docs
 Design spec: `docs/superpowers/specs/2026-11-19-generative-art-portfolio-design.md`. Reference piece: `src/pieces/flow-ribbons/v1`. Deploying: `docs/deploy.md`.
-Still open: the server render cost of very long live moments (see above).
+Still open: murmuration v1 long-moment renders stay slow (v1 is frozen and draws every step).

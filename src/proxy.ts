@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { CAPTURE_ID_RE } from '@/lib/capture/record';
-import { getPiece } from '@/pieces';
+import { getPiece, renamedSlug } from '@/pieces';
 
 /**
  * Unknown piece slugs and malformed capture ids get a real 404 status. With
@@ -18,6 +18,15 @@ export function proxy(request: NextRequest) {
     key = decodeURIComponent(rawKey ?? '');
   } catch {
     key = ''; // malformed %-escape: not a piece or capture
+  }
+  // A renamed piece: permanent redirect to its current slug, keeping the rest of the path and the query.
+  const renamed = section === 'art' ? renamedSlug(key) : undefined;
+  if (renamed) {
+    const url = request.nextUrl.clone();
+    const parts = url.pathname.split('/');
+    parts[2] = renamed;
+    url.pathname = parts.join('/');
+    return NextResponse.redirect(url, 308);
   }
   const known = section === 'c' ? CAPTURE_ID_RE.test(key) : Boolean(getPiece(key));
   if (known) return NextResponse.next();

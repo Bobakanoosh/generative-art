@@ -1,6 +1,6 @@
 import { replaySource, type InputLog } from '@/lib/input/log';
 import type { Generation, PieceDefinition } from '@/lib/piece/types';
-import { renderGeneration } from '@/lib/render/runner';
+import { renderFinal } from '@/lib/render/fastForward';
 import { flattenOnPaper, type PrintTile } from './tiles';
 
 /**
@@ -15,6 +15,6 @@ export function renderPrintTile(
   tile: PrintTile,
   input?: InputLog,
 ): void {
-  renderGeneration(piece, gen, ctx, tile.px.w, tile.logical, input ? replaySource(input) : undefined);
+  renderFinal(piece, gen, ctx, tile.px.w, tile.logical, input ? replaySource(input) : undefined);
   flattenOnPaper(ctx);
 }

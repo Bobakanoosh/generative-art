@@ -6,6 +6,8 @@ import { getPiece } from '@/pieces';
 import { ogCode } from './ogCode';
 
 const murmuration = getPiece('murmuration', 1)!;
+/** Fallbacks use the latest version's first featured code. */
+const murmurationLatest = getPiece('murmuration')!;
 const flowRibbons = getPiece('flow-ribbons', 1)!;
 
 describe('ogCode', () => {
@@ -23,16 +25,16 @@ describe('ogCode', () => {
 
   it('falls back to the first featured code for a live link without n (or n = 0)', () => {
     const live = encodeGeneration({ v: 1, s: 'abc', p: defaultsOf(murmuration.schema) });
-    expect(ogCode('murmuration', live)).toBe(murmuration.featured[0]);
+    expect(ogCode('murmuration', live)).toBe(murmurationLatest.featured[0]);
     const zero = encodeGeneration({ v: 1, s: 'abc', p: defaultsOf(murmuration.schema), n: 0 });
-    expect(ogCode('murmuration', zero)).toBe(murmuration.featured[0]);
+    expect(ogCode('murmuration', zero)).toBe(murmurationLatest.featured[0]);
     // The fallback itself is renderable: it carries a stop step.
     expect(decodeGeneration(ogCode('murmuration', live))!.n).toBeGreaterThan(0);
   });
 
   it('falls back for a missing, malformed or unknown-version code', () => {
-    expect(ogCode('murmuration', null)).toBe(murmuration.featured[0]);
-    expect(ogCode('murmuration', 'not-a-code')).toBe(murmuration.featured[0]);
+    expect(ogCode('murmuration', null)).toBe(murmurationLatest.featured[0]);
+    expect(ogCode('murmuration', 'not-a-code')).toBe(murmurationLatest.featured[0]);
     const v9 = encodeGeneration({ v: 9, s: 'abc', p: {}, n: 5 });
     expect(ogCode('flow-ribbons', v9)).toBe(flowRibbons.featured[0]);
   });

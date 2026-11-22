@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { allVersions, listPieces } from '@/pieces';
+import { allVersions, getPiece, listPieces } from '@/pieces';
 import { decodeGeneration, encodeGeneration } from '@/lib/piece/share';
 import { galleryGroups } from '@/lib/piece/thumbnails';
 
@@ -30,6 +30,14 @@ describe('featured codes', () => {
       });
     });
   }
+
+  it('the gallery and the piece page (no code) use the latest published version of every piece', () => {
+    const latest = new Map<string, number>();
+    for (const p of published) latest.set(p.slug, Math.max(latest.get(p.slug) ?? 0, p.version));
+    expect(new Map(listPieces().map((p) => [p.slug, p.version]))).toEqual(latest);
+    for (const [slug, version] of latest) expect(getPiece(slug)?.version).toBe(version);
+    for (const g of galleryGroups()) expect(decodeGeneration(g.primary.code)!.v).toBe(latest.get(g.slug));
+  });
 
   it('the gallery shows one group per listed piece', () => {
     const groups = galleryGroups();

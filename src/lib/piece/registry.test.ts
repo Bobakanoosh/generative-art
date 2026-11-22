@@ -1,6 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PieceDefinition } from './types';
-import { __resetRegistryForTests, allVersions, getPiece, latestVersion, listPieces, registerPieces } from './registry';
+import {
+  __resetRegistryForTests,
+  allVersions,
+  getPiece,
+  latestVersion,
+  listPieces,
+  registerPieces,
+  registerSlugAliases,
+  renamedSlug,
+} from './registry';
 
 function fake(slug: string, version: number, local = false): PieceDefinition {
   return {
@@ -23,6 +32,17 @@ describe('registry', () => {
     registerPieces([fake('demo', 1), fake('demo', 2)]);
   });
   afterEach(() => vi.unstubAllEnvs());
+
+  it('resolves a renamed slug to the current piece, without listing it twice', () => {
+    registerSlugAliases({ old: 'demo' });
+    expect(renamedSlug('old')).toBe('demo');
+    expect(renamedSlug('demo')).toBeUndefined();
+    expect(getPiece('old')?.slug).toBe('demo');
+    expect(getPiece('old', 1)?.version).toBe(1);
+    expect(latestVersion('old')).toBe(2);
+    expect(listPieces().map((p) => p.slug)).toEqual(['demo']);
+    expect(() => registerSlugAliases({ demo: 'other' })).toThrow(/shadows/);
+  });
 
   it('returns the latest version by default', () => {
     expect(getPiece('demo')?.version).toBe(2);

@@ -1,5 +1,9 @@
 /**
- * paint-splatter v1 - ported from the 2019 p5.js "Paint Splatter" sketch.
+ * colonies v2 - v1 (the 2019 p5.js "Paint Splatter" sketch) plus "Size by
+ * distance": every point's final size is scaled by its distance from the
+ * centre, so colonies swell or shrink towards the rim. At 0 it draws exactly
+ * what v1 does (the simulation and rng order are unchanged; only the drawn
+ * size is scaled).
  *
  * Points are dropped one at a time inside a disc (or a square). Each new
  * point looks for its nearest neighbour: the closer it is, the likelier it
@@ -11,7 +15,7 @@
  *
  * FROZEN once deployed: changing behaviour here changes every share code.
  */
-import { TAU, cos, pow, sin } from '@/lib/art/math';
+import { TAU, clamp, cos, pow, sin } from '@/lib/art/math';
 import { rgba } from '@/lib/art/color';
 import type { Rng } from '@/lib/art/rng';
 import type { ParamSchema, Params, PieceDefinition } from '@/lib/piece/types';
@@ -27,6 +31,8 @@ const SQUARE_MARGIN = 100;
 const BASE_RADIUS = 0.05;
 const TARGET_STEPS = 300;
 const CELL = 12; // nearest-neighbour grid cell, in source units
+/** At |Size by distance| = 1 the rim is this many times the centre size (and the centre its inverse). */
+const RADIAL_RANGE = 8;
 
 const PALETTES: string[][] = [
   ['#f5553e', '#688a94', '#c03221', '#545e75'],
@@ -56,6 +62,12 @@ const schema: ParamSchema = {
   centerBias: {
     kind: 'number', default: 0, min: 0, max: 1, step: 0.05,
     label: 'Center bias', description: 'Crowds points toward the middle of the disc.', group: 'Layout',
+  },
+  radialSize: {
+    kind: 'number', default: 0, min: -1, max: 1, step: 0.05,
+    label: 'Size by distance',
+    description: 'Positive grows cells towards the rim; negative grows them towards the centre.',
+    group: 'Layout',
   },
   opacity: {
     kind: 'number', default: 0.27, min: 0.05, max: 1, step: 0.01,
@@ -137,6 +149,15 @@ export function createNearestGrid(xs: ArrayLike<number>, ys: ArrayLike<number>, 
   };
 }
 
+/**
+ * Size multiplier at normalised distance t (0 centre, 1 rim) for Size by
+ * distance s in [-1, 1]: RADIAL_RANGE^(s (t - 1/2)), so the middle ring keeps
+ * its size, the rim scales by sqrt(RADIAL_RANGE)^s and the centre by its inverse.
+ */
+export function radialScale(s: number, t: number): number {
+  return pow(RADIAL_RANGE, s * (t - 0.5));
+}
+
 function setup(params: Params, rng: Rng): State {
   const n = params.points as number;
   const attraction = params.attraction as number;
@@ -202,8 +223,15 @@ function setup(params: Params, rng: Rng): State {
   // A point swells once for itself and once for every later member of its
   // group, so its final size is known once every point is placed.
   const rs = new Float64Array(n);
+  const radial = params.radialSize as number;
+  // Distance at which t = 1: the disc rim, or the square's corner.
+  const reach = square ? (SRC / 2 - SQUARE_MARGIN) * Math.SQRT2 : DISC_RADIUS;
   for (let i = 0; i < n; i++) {
     rs[i] = (BASE_RADIUS + growth * (groupSize[group[i]] - added[i] + 1)) * K;
+    if (radial !== 0) {
+      const t = clamp(Math.sqrt((xs[i] - SRC / 2) ** 2 + (ys[i] - SRC / 2) ** 2) / reach, 0, 1);
+      rs[i] *= radialScale(radial, t);
+    }
     xs[i] *= K;
     ys[i] *= K;
   }
@@ -237,25 +265,34 @@ function step(ctx: CanvasRenderingContext2D, s: State, i: number): void {
 }
 
 const piece: PieceDefinition<State> = {
-  slug: 'paint-splatter',
-  version: 1,
-  title: 'Paint Splatter',
-  description: 'Translucent dots clump into colour groups by nearest-neighbour attraction (2019 sketch).',
+  slug: 'colonies',
+  version: 2,
+  title: 'Colonies',
+  description: 'Cells settle one by one and join the nearest colony, which swells as it grows (2019 sketch).',
   aspect: ASPECT,
   schema,
   featured: [
-    // Even disc, earth tones, defaults, seed a1.
-    'eyJ2IjoxLCJzIjoiYTEiLCJwIjp7InBvaW50cyI6MzAwMDAsImF0dHJhY3Rpb24iOjI1LCJqaXR0ZXIiOjQsImdyb3d0aCI6MC4wNSwic2hhcGUiOiJjaXJjbGUiLCJjZW50ZXJCaWFzIjowLCJvcGFjaXR5IjowLjI3LCJvdXRsaW5lIjp0cnVlLCJjb2xvck1vZGUiOiJlYXJ0aCIsInBhbGV0dGUiOlsiI2Y1NTUzZSIsIiM2ODhhOTQiLCIjYzAzMjIxIiwiIzU0NWU3NSJdLCJiYWNrZ3JvdW5kIjoiIzAwMDAwMCJ9fQ',
-    // Dendrites: centre bias, strong attraction, opaque, seed a6.
-    'eyJ2IjoxLCJzIjoiYTYiLCJwIjp7InBvaW50cyI6OTAwMCwiYXR0cmFjdGlvbiI6MTIwLCJqaXR0ZXIiOjIuNSwiZ3Jvd3RoIjowLjAxMiwic2hhcGUiOiJjaXJjbGUiLCJjZW50ZXJCaWFzIjowLjYsIm9wYWNpdHkiOjEsIm91dGxpbmUiOnRydWUsImNvbG9yTW9kZSI6ImVhcnRoIiwicGFsZXR0ZSI6WyIjZjU1NTNlIiwiIzY4OGE5NCIsIiNjMDMyMjEiLCIjNTQ1ZTc1Il0sImJhY2tncm91bmQiOiIjMDAwMDAwIn19',
+    // Artist's pick (main preview): 40 000 points, strong attraction, earth tones on black, seed a1.
+    'eyJ2IjoyLCJzIjoiYTEiLCJwIjp7InBvaW50cyI6NDAwMDAsImF0dHJhY3Rpb24iOjk5LCJqaXR0ZXIiOjQuNSwiZ3Jvd3RoIjowLjA1LCJzaGFwZSI6ImNpcmNsZSIsImNlbnRlckJpYXMiOjAsIm9wYWNpdHkiOjAuMzUsIm91dGxpbmUiOnRydWUsImNvbG9yTW9kZSI6ImVhcnRoIiwicGFsZXR0ZSI6WyIjZTljNDZhIiwiI2Y0YTI2MSIsIiNlNzZmNTEiLCIjMmE5ZDhmIl0sImJhY2tncm91bmQiOiIjMDAwMDAwIn19',
+    // Artist's pick: centre-biased opaque blooms, mint/navy/grey palette on deep indigo, seed 2eu7bvfyeb.
+    'eyJ2IjoyLCJzIjoiMmV1N2J2ZnllYiIsInAiOnsicG9pbnRzIjo0MDAwMCwiYXR0cmFjdGlvbiI6MTQsImppdHRlciI6OC41LCJncm93dGgiOjAuMiwic2hhcGUiOiJjaXJjbGUiLCJjZW50ZXJCaWFzIjoxLCJvcGFjaXR5IjoxLCJvdXRsaW5lIjp0cnVlLCJjb2xvck1vZGUiOiJwYWxldHRlIiwicGFsZXR0ZSI6WyIjMTdkMjk3IiwiIzIwMjU0MyIsIiNkY2RjZGMiLCIjOTZiN2I1Il0sImJhY2tncm91bmQiOiIjMWIxOTI5In19',
     // Square, palette colours, seed sq1.
-    'eyJ2IjoxLCJzIjoic3ExIiwicCI6eyJwb2ludHMiOjMwMDAwLCJhdHRyYWN0aW9uIjo0MCwiaml0dGVyIjo0LCJncm93dGgiOjAuMDMsInNoYXBlIjoic3F1YXJlIiwiY2VudGVyQmlhcyI6MCwib3BhY2l0eSI6MC41NSwib3V0bGluZSI6dHJ1ZSwiY29sb3JNb2RlIjoicGFsZXR0ZSIsInBhbGV0dGUiOlsiI2U5YzQ2YSIsIiNmNGEyNjEiLCIjZTc2ZjUxIiwiIzJhOWQ4ZiJdLCJiYWNrZ3JvdW5kIjoiIzBkMGQwZCJ9fQ',
+    'eyJ2IjoyLCJzIjoic3ExIiwicCI6eyJwb2ludHMiOjMwMDAwLCJhdHRyYWN0aW9uIjo0MCwiaml0dGVyIjo0LCJncm93dGgiOjAuMDMsInNoYXBlIjoic3F1YXJlIiwiY2VudGVyQmlhcyI6MCwib3BhY2l0eSI6MC41NSwib3V0bGluZSI6dHJ1ZSwiY29sb3JNb2RlIjoicGFsZXR0ZSIsInBhbGV0dGUiOlsiI2U5YzQ2YSIsIiNmNGEyNjEiLCIjZTc2ZjUxIiwiIzJhOWQ4ZiJdLCJiYWNrZ3JvdW5kIjoiIzBkMGQwZCJ9fQ',
   ],
   snapshotCodes: [
+    // Size by distance 0.6 (rim larger), defaults otherwise, seed snapradial.
+    'eyJ2IjoyLCJzIjoic25hcHJhZGlhbCIsInAiOnsicG9pbnRzIjozMDAwMCwiYXR0cmFjdGlvbiI6MjUsImppdHRlciI6NCwiZ3Jvd3RoIjowLjA1LCJzaGFwZSI6ImNpcmNsZSIsImNlbnRlckJpYXMiOjAsInJhZGlhbFNpemUiOjAuNiwib3BhY2l0eSI6MC4yNywib3V0bGluZSI6dHJ1ZSwiY29sb3JNb2RlIjoiZWFydGgiLCJwYWxldHRlIjpbIiNmNTU1M2UiLCIjNjg4YTk0IiwiI2MwMzIyMSIsIiM1NDVlNzUiXSwiYmFja2dyb3VuZCI6IiMwMDAwMDAifX0',
+    // Size by distance -0.8 (centre larger) on the square, seed snapradialsq.
+    'eyJ2IjoyLCJzIjoic25hcHJhZGlhbHNxIiwicCI6eyJwb2ludHMiOjMwMDAwLCJhdHRyYWN0aW9uIjoyNSwiaml0dGVyIjo0LCJncm93dGgiOjAuMDUsInNoYXBlIjoic3F1YXJlIiwiY2VudGVyQmlhcyI6MCwicmFkaWFsU2l6ZSI6LTAuOCwib3BhY2l0eSI6MC4yNywib3V0bGluZSI6dHJ1ZSwiY29sb3JNb2RlIjoiZWFydGgiLCJwYWxldHRlIjpbIiNmNTU1M2UiLCIjNjg4YTk0IiwiI2MwMzIyMSIsIiM1NDVlNzUiXSwiYmFja2dyb3VuZCI6IiMwMDAwMDAifX0',
+    // Former featured codes, kept pinned.
+    // Even disc, earth tones, defaults, seed a1.
+    'eyJ2IjoyLCJzIjoiYTEiLCJwIjp7InBvaW50cyI6MzAwMDAsImF0dHJhY3Rpb24iOjI1LCJqaXR0ZXIiOjQsImdyb3d0aCI6MC4wNSwic2hhcGUiOiJjaXJjbGUiLCJjZW50ZXJCaWFzIjowLCJvcGFjaXR5IjowLjI3LCJvdXRsaW5lIjp0cnVlLCJjb2xvck1vZGUiOiJlYXJ0aCIsInBhbGV0dGUiOlsiI2Y1NTUzZSIsIiM2ODhhOTQiLCIjYzAzMjIxIiwiIzU0NWU3NSJdLCJiYWNrZ3JvdW5kIjoiIzAwMDAwMCJ9fQ',
+    // Dendrites: centre bias, strong attraction, opaque, seed a6.
+    'eyJ2IjoyLCJzIjoiYTYiLCJwIjp7InBvaW50cyI6OTAwMCwiYXR0cmFjdGlvbiI6MTIwLCJqaXR0ZXIiOjIuNSwiZ3Jvd3RoIjowLjAxMiwic2hhcGUiOiJjaXJjbGUiLCJjZW50ZXJCaWFzIjowLjYsIm9wYWNpdHkiOjEsIm91dGxpbmUiOnRydWUsImNvbG9yTW9kZSI6ImVhcnRoIiwicGFsZXR0ZSI6WyIjZjU1NTNlIiwiIzY4OGE5NCIsIiNjMDMyMjEiLCIjNTQ1ZTc1Il0sImJhY2tncm91bmQiOiIjMDAwMDAwIn19',
     // outline off, defaults, seed snapnoline.
-    'eyJ2IjoxLCJzIjoic25hcG5vbGluZSIsInAiOnsicG9pbnRzIjozMDAwMCwiYXR0cmFjdGlvbiI6MjUsImppdHRlciI6NCwiZ3Jvd3RoIjowLjA1LCJzaGFwZSI6ImNpcmNsZSIsImNlbnRlckJpYXMiOjAsIm9wYWNpdHkiOjAuMjcsIm91dGxpbmUiOmZhbHNlLCJjb2xvck1vZGUiOiJlYXJ0aCIsInBhbGV0dGUiOlsiI2Y1NTUzZSIsIiM2ODhhOTQiLCIjYzAzMjIxIiwiIzU0NWU3NSJdLCJiYWNrZ3JvdW5kIjoiIzAwMDAwMCJ9fQ',
+    'eyJ2IjoyLCJzIjoic25hcG5vbGluZSIsInAiOnsicG9pbnRzIjozMDAwMCwiYXR0cmFjdGlvbiI6MjUsImppdHRlciI6NCwiZ3Jvd3RoIjowLjA1LCJzaGFwZSI6ImNpcmNsZSIsImNlbnRlckJpYXMiOjAsIm9wYWNpdHkiOjAuMjcsIm91dGxpbmUiOmZhbHNlLCJjb2xvck1vZGUiOiJlYXJ0aCIsInBhbGV0dGUiOlsiI2Y1NTUzZSIsIiM2ODhhOTQiLCIjYzAzMjIxIiwiIzU0NWU3NSJdLCJiYWNrZ3JvdW5kIjoiIzAwMDAwMCJ9fQ',
     // Mid-build stop step n=100, defaults, seed snapmid.
-    'eyJ2IjoxLCJzIjoic25hcG1pZCIsInAiOnsicG9pbnRzIjozMDAwMCwiYXR0cmFjdGlvbiI6MjUsImppdHRlciI6NCwiZ3Jvd3RoIjowLjA1LCJzaGFwZSI6ImNpcmNsZSIsImNlbnRlckJpYXMiOjAsIm9wYWNpdHkiOjAuMjcsIm91dGxpbmUiOnRydWUsImNvbG9yTW9kZSI6ImVhcnRoIiwicGFsZXR0ZSI6WyIjZjU1NTNlIiwiIzY4OGE5NCIsIiNjMDMyMjEiLCIjNTQ1ZTc1Il0sImJhY2tncm91bmQiOiIjMDAwMDAwIn0sIm4iOjEwMH0',
+    'eyJ2IjoyLCJzIjoic25hcG1pZCIsInAiOnsicG9pbnRzIjozMDAwMCwiYXR0cmFjdGlvbiI6MjUsImppdHRlciI6NCwiZ3Jvd3RoIjowLjA1LCJzaGFwZSI6ImNpcmNsZSIsImNlbnRlckJpYXMiOjAsIm9wYWNpdHkiOjAuMjcsIm91dGxpbmUiOnRydWUsImNvbG9yTW9kZSI6ImVhcnRoIiwicGFsZXR0ZSI6WyIjZjU1NTNlIiwiIzY4OGE5NCIsIiNjMDMyMjEiLCIjNTQ1ZTc1Il0sImJhY2tncm91bmQiOiIjMDAwMDAwIn0sIm4iOjEwMH0',
   ],
   setup,
   step: (ctx, state, i) => step(ctx, state, i),

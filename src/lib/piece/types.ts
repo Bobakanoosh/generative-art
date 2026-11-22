@@ -49,6 +49,19 @@ export interface PieceDefinition<S = unknown> {
   snapshotCodes?: string[];
   /** Excluded from production. */
   local?: boolean;
+  /**
+   * Optional shortcut for single-image renders (downloads, prints, previews)
+   * of pieces whose old drawing fades away completely, e.g. veil trails that
+   * reach the background exactly. `keep(params)` is how many final steps
+   * still show in the image (undefined: no shortcut for these params);
+   * `prime(ctx, params)` paints the canvas as step 0 would, in pixel space.
+   * Earlier steps still run (the simulation needs them) with drawing
+   * switched off. Must give byte-identical images; see src/lib/render/fastForward.ts.
+   */
+  fastForward?: {
+    keep(params: Params): number | undefined;
+    prime(ctx: CanvasRenderingContext2D, params: Params): void;
+  };
   setup(params: Params, rng: Rng): S;
   step(ctx: CanvasRenderingContext2D, state: S, i: number, input: InputFrame): void;
   steps(state: S): number;

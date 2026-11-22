@@ -68,22 +68,13 @@ function advance(
 **Accumulation** (flow-ribbons): never clear; each step draws a short low-alpha segment, overlaps build density. Alpha ~0.05-0.25. Cheap, and the image at step `n` is exactly the build to `n`.
 
 **Veil fade** (murmuration): each step first fills the canvas with the background at `trail` alpha, then draws new strokes. Old strokes decay geometrically: comet trails. Draw each trail from the particle's last drawn position (`lx, ly`) to the new one.
-- **8-bit stall**: a veil fainter than about 0.25 alpha rounds to no change in 8-bit premultiplied channels, so old strokes stall as a tinted haze that never reaches the background. Workaround: below `VEIL_MIN` (murmuration uses 0.25) lay the veil only every `m` steps at the equivalent alpha:
-
-```ts
-import { log, pow } from '@/lib/art/math';
-
-const VEIL_MIN = 0.25;
-function veilPlan(trail: number) {
-  if (trail >= VEIL_MIN) return { every: 1, alpha: trail };
-  const every = Math.max(1, Math.round(log(1 - VEIL_MIN) / log(1 - trail)));
-  return { every, alpha: 1 - pow(1 - trail, every) };
-}
-// in step: if (i % plan.every === 0) { ctx.fillStyle = veil; ctx.fillRect(0, 0, W, H); }
-```
+- **8-bit stall**: a veil fainter than about 0.25 alpha can't finish the fade in 8-bit colour (a pixel within about 0.5 / alpha levels of the background rounds to no change), so old strokes stall as a tinted haze.
+- **Don't veil in bursts.** murmuration v1 laid faint veils every `m` steps at the equivalent stronger alpha; the whole canvas then dims ~25% at once every few steps, which reads as a blink in live view and videos. v1 is frozen with it.
+- **Fix (murmuration v2)**: veil every step at `trail` alpha, and every 4 steps run an exact clean-up that moves each channel one level towards the background, clamped at it: for channels where every palette colour is above the background, `lighten` with `bg + 1` then `difference` with `1` (= `max(p - 1, bg)`); below, `darken` with `bg - 1` then `lighter` with `1`. Opaque fills with separable blend modes are exact in 8 bits. See `cleanPlan` in `src/pieces/murmuration/v2/index.ts`. A channel with palette colours on both sides of the background can't be cleaned this way.
+- Because trails then reach the background exactly, the piece can declare `fastForward` so single-image server renders only draw the last few hundred steps (see CLAUDE.md, "Long live renders"); test it byte-for-byte against a full render.
 
 ## 6. Density and cost
-Render cost is particles x steps (server renders replay every step; endless pieces are capped by `MAX_STOP_STEP`; run `npm run test:slow`). Control density with particle count, `alpha` (more particles need lower alpha) and line width. A curl field keeps density even for particles that move *with* the field (position += field velocity); do not re-seed to fix clumping, switch field kind. Caveat: inertial (velocity-based) particles that steer towards the field can still clump in a curl field, since their momentum carries them off the streamlines; murmuration adds a density-pressure force (birds push apart where the local count is high) to keep the flock from collapsing. Veil-fade pieces also pay per canvas pixel: every veil is a full-canvas fill, so a server render's time grows with output width as well as steps.
+Render cost is particles x steps (server renders replay every step; endless pieces are capped by `MAX_STOP_STEP`; run `npm run test:slow`). Control density with particle count, `alpha` (more particles need lower alpha) and line width. A curl field keeps density even for particles that move *with* the field (position += field velocity); do not re-seed to fix clumping, switch field kind. Caveat: inertial (velocity-based) particles that steer towards the field can still clump in a curl field, since their momentum carries them off the streamlines; murmuration adds a density-pressure force (birds push apart where the local count is high) to keep the flock from collapsing. Veil-fade pieces also pay per canvas pixel: every veil is a full-canvas fill, so a server render's time grows with output width as well as steps, unless the piece declares `fastForward`.
 
 ## 7. Colour
 - Palette index per ribbon/band or group; `mixHex` between neighbours for gradient bands.
